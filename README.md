@@ -4,7 +4,7 @@ This allows to have the sensors up to 150m away (orchard or garden) of the point
 
 The sensors can be:
 - A couple of Bosh BME-280
-- A BME-280 and a thermistor
+- A BME-280 and a thermistor. (thermistor for better accuracy)
 
 The ESP also reads a water flow counter and a solenoid valve to shut off the water flow if some given amount of time has elapsed. 
 The motivation, is to detect if there is some problem in the main pipe that feeds a couple of automatic water irrigation timers, so if they got stuck or the pipe is broken the water flow can be closed without human intervention.
