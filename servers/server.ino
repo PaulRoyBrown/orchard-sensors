@@ -1,3 +1,15 @@
+/*
+This server connects to one of the WiFis stored in an array and receives RF data from two sensorss.
+It reads the RF packet identifiers to know how to read the messages, anf extract its data. Then, it
+forwards the data to ThingerIO using a registered user.
+Also, it has attached a cable comming from a hall effect flowmeter that produces an interrupt to measure 
+water flow. (The formula is LiterPerMinute=number_pulses/6.6). The water pipe goes to a couple of irrigation
+programmers that are manually programmed independently of all this code.  
+With this code not only measures water flow, also controls how many minutes water is flowing, and if a limit 
+is reached,it commands a solenoid valve to close water flow. This allows to detect an undesired condition 
+in the water pipe, broken or stuck programmer. So, we have not to worry about an excessive water comsuption
+ */
+
 //#define _DEBUG_
  
 #include <Arduino.h>
