@@ -70,19 +70,18 @@ bool bReboot = false;
 
 // For second sensor, we use a thermistor feeded with a constant current LM334 
 // setted for THERMISTOR_CURRENT_UA microamps
-#define THERMISTOR_POWER_PIN 8
-#define   30.89
+#define THERMISTOR_POWER_PIN    8
+#define THERMISTOR_CURRENT_UA   30.89
 #define THERMISTOR_CURRENT_TIME 100
 
 // We measure the voltage with this ADC chip
 Adafruit_ADS1115 ads;
 
-//const float CURRENT_UA = THERMISTOR_CURRENT_UA; //30.89; //32.5;           // Corriente constante en µA
-const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convertida a amperios
-float multiplier = 0.0078125F;
+//const float CURRENT_UA = THERMISTOR_CURRENT_UA; //30.89; //32.5;           // Constant current µA
+const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convert to amps
+float multiplier = 0.0078125F; // Scale factor ADC
 
-
-
+// Storage type for sensor data
 typedef struct _SensorData
 {
   int8_t temp;
@@ -96,6 +95,7 @@ SensorData getValues(Adafruit_BME280 &);
 
 unsigned long delayTime = 100;
 
+// Used to reset
 void(* resetFunc) (void) = 0;
 
 //////////////////////////////////////////////////////////////////////////
@@ -124,27 +124,28 @@ void wdt_init(void)
 
 void enterSleep(void)
 { 
-  WDTCSR |= _BV(WDIE); // Reafirma que el WDT está activo
+  WDTCSR |= _BV(WDIE); // Assure WDT active
 
-  // Desactivar periféricos para ahorro energético
+  // Disable peripherals for power saving
   power_adc_disable();
   power_spi_disable();
   power_timer0_disable();
   power_timer1_disable();
   power_timer2_disable();
-  power_twi_disable(); // Apaga TWI sin cerrar Wire
+  power_twi_disable(); // Close TWI without closing Wire
 
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
-  sleep_mode(); // Entra en suspensión
+  sleep_mode(); // Enter sleep here
 
-  // Al despertar por WDT
+  // After WDT wakeup, it continues here
   sleep_disable();
   power_all_enable();
 
-  delay(50); // Esperar a que el bus I²C se estabilice
+  delay(50); // Wait I²C stabilization
 }
 
+// For averaging
 unsigned long samples[MAX_AVG_SAMPLES];
 unsigned long  mtotal = 0;
 unsigned long num_samples = 0;
@@ -226,7 +227,7 @@ long readVcc()
  * 3.8 4050
  * 3.7 4050
  * 3.6 4014 -> LOW 
- * 3.5 3901 -> 3.25 (3904 se queda en 3.15V,medido en los pines de arduino, al transmitir)
+ * 3.5 3901 -> 3.25 (3904 goes to 3.15V when transmit)
  * 3.4 3763
  * 3.3 3654 
  * 3.2 3524
@@ -281,18 +282,21 @@ uint8_t get_power_state(unsigned long voltage)
 
 void setup_wdt()
 {
-  cli();           // Desactivar interrupciones globales
-  wdt_reset();     // Resetear el WDT
+  cli();           // Set no interrupst in this block
+  
+  wdt_reset();     // Reset WDT
 
-  // Activar modo de configuración
+  // Try to collect all config operations here.inly 4 clock intervals!
+  // Set configuration mode
   WDTCSR |= (1 << WDCE) | (1 << WDE);
 
-  // Configurar: 2 segundos + solo interrupción
+  // Configure: 2 sec + interrupt, not reset
   WDTCSR = (1 << WDIE) | (1 << WDP0) | (1 << WDP1) | (1 << WDP2);
 
-  // Xonfigurar 8 segundos + interrupcion
+   // Configure: 8 sec + interrupt, not reset
   //WDTCSR = (1 << WDIE) | 1<<WDP0 | 1<<WDP3; 
-  sei();           // Reactivar interrupciones globales
+  
+  sei();           // Reset interrupts handling
 }
 
 // Pack value in 7 bit. 1st could be the sign if ig=true and six more the value
@@ -418,10 +422,7 @@ void BME280_Sleep(uint8_t addr)
 bool setupBoard(Adafruit_BME280 *board, bool bPressure, uint8_t addr)
 {
   int n = 3;
-    // Will be used to give power to two BME280
-    //pinMode(SENSOR_POWER_PIN, OUTPUT);
-    //digitalWrite(SENSOR_POWER_PIN, HIGH);
-    //delay(50);
+
 /*
     digitalWrite(LED_STATE, HIGH); 
     delay(200);
@@ -450,8 +451,6 @@ bool setupBoard(Adafruit_BME280 *board, bool bPressure, uint8_t addr)
                     bPressure ? Adafruit_BME280::SAMPLING_X1 : Adafruit_BME280::SAMPLING_NONE, // pressure
                     Adafruit_BME280::SAMPLING_X1, // humidity
                     Adafruit_BME280::FILTER_OFF , Adafruit_BME280::standby_duration::STANDBY_MS_1000  );
-
-    //pinMode(BME_SCK, INPUT);
 
     return true;
 }
@@ -590,7 +589,7 @@ void setup()
 
   Serial.println("Coefficients ok");
 
-  // Configuración del ADS1115 
+  // Config ADS1115 
  #ifndef ADC_POWERED_BY_PIN
  // OJO
     pinMode(5, OUTPUT);    // DEBE ESTAR SI NO HAY ADC ALIMENTADO POR PIN 5
@@ -617,6 +616,7 @@ void setup()
   bReboot = false;
 
   Serial.println("Initializing RF_TX"); 
+  
   //Unused 
   //pinMode(LED_STATE, OUTPUT);
 
@@ -687,9 +687,6 @@ void loop()
   awakes = 0;
 
   readThermistorTemperature(dat2);
-          
-  // Only needed in forced mode! In normal mode, you can remove the next line.
-  //bme.takeForcedMeasurement(); // has no effect in normal mode
   
   delay(delayTime); 
     
@@ -732,7 +729,6 @@ void loop()
   digitalWrite(BME_CS_BOARD, HIGH);
   pinMode(BME_CS_BOARD, INPUT);
 
-  // nuevo, comentado y replicado abajo
   //unsigned long data = set_message(0xA,dat1.temp,dat2.temp,dat1.humidity,dat2.humidity);
   unsigned long data = set_message3(0xC,dat1.temp,dat2.temp,dat1.humidity,dat2.tempf);
   pinMode(RF_POWER_PIN, OUTPUT);
@@ -766,9 +762,6 @@ void loop()
     bReboot = false;    
   }
 
-  // Nuevo.esto era lo de arriba
-  //pinMode(RF_POWER_PIN, OUTPUT);
-  //digitalWrite(RF_POWER_PIN, HIGH);
 
   unsigned long message = set_message2(0xD,avgVoltage,dat1.pressure,level);
 
@@ -786,31 +779,9 @@ void loop()
     
   //delay(delayTime);
     
-  // Guard. We use it to send the state.No matter if this transmit is lost
+  // Send RF data
     
   mySwitch.send(message, SIZE_BITS);
-    
-  // Nuevo,antes descomentado
-  //pinMode(RF_POWER_PIN, INPUT);
-  //digitalWrite(RF_POWER_PIN, LOW);
-
-/*
-    // Nuevo start
-    delay(delayTime);
-    unsigned long data = set_message(0xA,dat1.temp,dat2.temp,dat1.humidity,dat2.humidity);
-    mySwitch.send(data, SIZE_BITS);
-    delay(delayTime);
-        
-#ifdef SHOW_SERIAL 
-  // show_bits_long(data);
-    Serial.print("ValueSent: ");
-    Serial.println(data);
-#endif
-    pinMode(RF_POWER_PIN, INPUT);
-    digitalWrite(RF_POWER_PIN, LOW);
-    // Nuevo end
-  */  
-    //digitalWrite(BME_CS_BOARD, LOW);
     
     //digitalWrite(11, LOW);
     delay(delayTime); 
