@@ -1,4 +1,3 @@
-// ESTE ES EL FINAL CON THERMISTOR
 #include <Arduino.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
@@ -15,47 +14,36 @@
 #include <Adafruit_ADS1X15.h>
 #include <math.h>
 
-/*
-|head | temp1  |temp2 |hum1 | hum2  
- 1010 | 7 bit |7 bit |7 bit|7 bit
-
-|head |voltage | press| state | reserved
-|1011 |  13bit | 7bit | 2bit  | 000000
-*/
 
 #define SHOW_SERIAL  // Define to trace on serial port
 //#define NO_SENSOR    // For bit math tests 
 
 #define MAX_AVG_SAMPLES 5
 
-#define VOLTAGE_REFERENCE 2495
-
+// RCSwitch to transmit data
 #define RF_POWER_PIN 9
 #define RF_TX_PIN 4
 #define SIZE_BITS 32 //20
 
-#define THERMISTOR_POWER_PIN 8
-#define THERMISTOR_CURRENT_UA 30.89
-#define THERMISTOR_CURRENT_TIME 100
-
 RCSwitch mySwitch = RCSwitch();
 
-#define ADC_BATTERY_PIN 3
-
+// One SPI BME280 sensor
 // Standard SPI pins on Mini Pro
 #define BME_SCK 13
 #define BME_MISO 12
 #define BME_MOSI 11
 #define BME_CS_BOARD 10
 
-#define BME_CS_CABLE 8
+Adafruit_BME280 bmeBoard(BME_CS_BOARD); // hardware SPI
+bool boardOk = false;
 
-//#define SENSOR_POWER_PIN 2
-#define LED_STATE 2
+//Unused (ligh LED on transmit)
+//#define LED_STATE 2
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
-// WDT entry count
+// WDT entry count. We wakeup each 2 o 8 secs (as configured in setup_wdt() just to check battery 
+// voltage and each MAX_AWAKES we do measurements
 #define MAX_AWAKES 8
 #define MAX_AWAKES_RESET 1000 // Reset each 8000secs
 
@@ -63,35 +51,37 @@ volatile uint8_t awakes = MAX_AWAKES; // 8, so first time in loop,we send inform
 volatile uint8_t maxAwakes = MAX_AWAKES; // This is increased if low voltage to save batery
 volatile uint8_t reset = 0; 
 
-//#define VOLTAGE_HIGH    4100//4061
-//#define VOLTAGE_MEDIUM  4060 //   4061//4050//4010
-//#define VOLTAGE_LOW     4030 //4050 //4000//3959
-//#define VOLTAGE_ULTRALOW  3990 //3995 // 3770//3950
-
+// Battery limits to start saving power
 #define VOLTAGE_HIGH    4099
 #define VOLTAGE_MEDIUM  4061//4050//4010
 #define VOLTAGE_LOW     4050 //4000//3959
 #define VOLTAGE_ULTRALOW  3995 // 3770//3950
 
+// States that match above battery limits
 #define POWER_STATE_HIGH    1  // 1*8*MAX_AWAKES sec -> aprox 8*8 = 1 min
 #define POWER_STATE_MEDIUM  3  // 3*8*MAX_AWAKES sec -> aprox 3*8*8 = 3 min aprox
 #define POWER_STATE_LOW     10 // 10*8*MAX_AWAKES sec -> aprox 10*8*8 = 10 min aprox
 #define POWER_STATE_ULTRALOW   30 // 30*8*MAX_AWAKES sec -> aprox 30*8*8 = 30 min aprox
 
-
-Adafruit_ADS1115 ads;
-
-// Constantes del sistema
-//const float CURRENT_UA = THERMISTOR_CURRENT_UA; //30.89; //32.5;           // Corriente constante en µA
-const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convertida a amperios
-float multiplier = 0.0078125F;
-
 uint8_t powerState = POWER_STATE_HIGH ; // ULTRALOW,LOW,MEDIUM,HIGH Actual power state
 uint8_t powerSaveLevel = 0;
 bool bReboot = false;
 
-Adafruit_BME280 bmeBoard(BME_CS_BOARD); // hardware SPI
-bool boardOk = false;
+
+// For second sensor, we use a thermistor feeded with a constant current LM334 
+// setted for THERMISTOR_CURRENT_UA microamps
+#define THERMISTOR_POWER_PIN 8
+#define   30.89
+#define THERMISTOR_CURRENT_TIME 100
+
+// We measure the voltage with this ADC chip
+Adafruit_ADS1115 ads;
+
+//const float CURRENT_UA = THERMISTOR_CURRENT_UA; //30.89; //32.5;           // Corriente constante en µA
+const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convertida a amperios
+float multiplier = 0.0078125F;
+
+
 
 typedef struct _SensorData
 {
@@ -627,7 +617,8 @@ void setup()
   bReboot = false;
 
   Serial.println("Initializing RF_TX"); 
-  pinMode(LED_STATE, OUTPUT);
+  //Unused 
+  //pinMode(LED_STATE, OUTPUT);
 
   mySwitch.enableTransmit(RF_TX_PIN);
   mySwitch.setRepeatTransmit(20);
@@ -648,8 +639,6 @@ void setup()
   Serial.println();
 #endif
   //pinMode(LED_STATE, INPUT);
-  // turn off I2C ADC 
-  // TWCR &= ~(bit(TWEN) | bit(TWIE) | bit(TWEA));
 
   setup_wdt();
 
