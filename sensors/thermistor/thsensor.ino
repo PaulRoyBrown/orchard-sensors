@@ -171,7 +171,8 @@ unsigned long add_voltage_sample(unsigned long sample)
 }
 
 // Use "internal ADC" to measure battery voltage
-// With this method, comsumption gos from 90uA to 245uA !
+// (Check https://forum.arduino.cc/t/measure-3-7-battery-voltage/1033649/22)
+// With this method, comsumption go from 90uA to 245uA !
 long readVcc() 
 {
   //return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
