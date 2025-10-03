@@ -20,7 +20,7 @@ Battery capacity is 150mA or 350mA and sensor data is sent via RF in 4333Mhz ban
 
 This is enough to keep this level all night with no problem (and even some days if no solar power is present). In case voltage decreases even more (very unusual), messages are sent each 10min, and even each 30min. This state can be mantained for much more than a week.
 
-Measured current consuptiom is about 180uA for the two BME280 sensors board version. For thermistor, raises to 700uA (and i'm trying to resuce that)
+Measured current consuptiom in sleep state is about 180uA for the two BME280 sensors board version. For thermistor, raises to 700uA (and i'm trying to resuce that).When board wakes up each minute and measures and sends RF data, current jumps to 8mA for 5 seconds or so.
 
 <h2>Server board (ESP8266-E12)</h2>
 Server is placed outside, up in one wall of my house where WiFi access is feasible, so it can open a session in ThingerIO cloud.
