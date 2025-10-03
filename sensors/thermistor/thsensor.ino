@@ -142,7 +142,11 @@ void enterSleep(void)
   delay(50); // Wait I²C stabilization
 }
 
-// For averaging
+///////////////////////////////////////////
+// Methods for measuring battery voltage
+///////////////////////////////////////////
+
+// For averaging voltage battery measurement
 unsigned long samples[MAX_AVG_SAMPLES];
 unsigned long  mtotal = 0;
 unsigned long num_samples = 0;
@@ -166,11 +170,12 @@ unsigned long add_voltage_sample(unsigned long sample)
     return avgVoltage;
 }
 
+// Use "internal ADC" to measure battery voltage
+// With this method, comsumption gos from 90uA to 245uA !
 long readVcc() 
 {
-  return 4101;
-  // With this method, comsumption gos from 90uA to 245uA
-  //return 0;
+  //return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
+ 
   uint8_t copy =   (*(volatile uint8_t *)(0x7C));
   // Read 1.1V reference against AVcc
   // set the reference to Vcc and the measurement to the internal 1.1V reference
