@@ -2,6 +2,8 @@
 An Arduino project about using a couple of sensors attached to an **Arduino Mini Pro** to measure temperature and humidity and send data via RF433 to an **ESP8266 (E12)** that is connected to domestic WiFi, and controls flow of water in an irrigation pipe.
 This allows to have the sensors up to 150m away (orchard or garden) of the point where ESP8266 server can stay connected to internet (house), to send data to a ThingerIO **public** site, where data is graphed at one sample per minute.
 
+Beside the two sensors (red and blue lines) I have also added another Arduino mini pro that just uses a single sensor to send environment data from inside my house (green line in next picture).
+
 <img width="1570" height="731" alt="image" src="https://github.com/user-attachments/assets/43d3f4d0-9b45-4532-90d5-284b1128df6d" />
 
 
@@ -29,3 +31,6 @@ Water devices are:
 - A solenoid valve revamped from an old water irrigation timer,
 - A DC dual H-Bridge motor controller driver board, based on MX1616 controller, to command the valve.
 - A Hall effect water flowmeter, that provides pulses that are counted by ESP as interrupts per time interval.
+
+The ESP server receives RF data using typical superheterodyne SRX882 chip. Each RF sensor sends messages with an identifier, and using that he knows how to parse its data (packed as a 32bit long type) and its origin (house or orchard). 
+
