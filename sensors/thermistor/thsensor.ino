@@ -20,15 +20,22 @@
 
 #define MAX_AVG_SAMPLES 5
 
+/////////////////////////////
 // RCSwitch to transmit data
+/////////////////////////////
+
 #define RF_POWER_PIN 9
 #define RF_TX_PIN 4
-#define SIZE_BITS 32 //20
+#define SIZE_BITS 32 
+//#define LED_STATE 2  //ligh LED on transmit 
 
 RCSwitch mySwitch = RCSwitch();
 
+////////////////////////////
 // One SPI BME280 sensor
 // Standard SPI pins on Mini Pro
+////////////////////////////
+
 #define BME_SCK 13
 #define BME_MISO 12
 #define BME_MOSI 11
@@ -37,11 +44,35 @@ RCSwitch mySwitch = RCSwitch();
 Adafruit_BME280 bmeBoard(BME_CS_BOARD); // hardware SPI
 bool boardOk = false;
 
-//Unused (ligh LED on transmit)
-//#define LED_STATE 2
+///////////////////////////
+// For second sensor, we use a thermistor feeded with a constant current LM334 
+// setted for THERMISTOR_CURRENT_UA microamps
+///////////////////////////
 
-#define SEALEVELPRESSURE_HPA (1013.25)
+#define THERMISTOR_POWER_PIN    8
+#define THERMISTOR_CURRENT_UA   30.89 // Constant current µA. Important to be well measured!!
+#define THERMISTOR_CURRENT_TIME 100
+//#define ADC_POWERED_BY_PIN // A try to see if I can reduce power comsuption by switching ADC with a GPIO
 
+// We measure the thermistor voltage with this ADC chip
+Adafruit_ADS1115 ads;
+
+const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convert to amps
+float multiplier = 0.0078125F; // Scale factor ADC
+
+// Storage type for sensor data
+typedef struct _SensorData
+{
+  int8_t temp;
+  int8_t humidity;
+  int8_t pressure;
+  int8_t tempf; // decimal part
+}
+SensorData;
+
+//////////////////////////
+// Power state management
+//////////////////////////
 // WDT entry count. We wakeup each 2 o 8 secs (as configured in setup_wdt() just to check battery 
 // voltage and each MAX_AWAKES we do measurements
 #define MAX_AWAKES 8
@@ -67,42 +98,19 @@ uint8_t powerState = POWER_STATE_HIGH ; // ULTRALOW,LOW,MEDIUM,HIGH Actual power
 uint8_t powerSaveLevel = 0;
 bool bReboot = false;
 
-
-// For second sensor, we use a thermistor feeded with a constant current LM334 
-// setted for THERMISTOR_CURRENT_UA microamps
-#define THERMISTOR_POWER_PIN    8
-#define THERMISTOR_CURRENT_UA   30.89
-#define THERMISTOR_CURRENT_TIME 100
-
-// We measure the voltage with this ADC chip
-Adafruit_ADS1115 ads;
-
-//const float CURRENT_UA = THERMISTOR_CURRENT_UA; //30.89; //32.5;           // Constant current µA
-const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convert to amps
-float multiplier = 0.0078125F; // Scale factor ADC
-
-// Storage type for sensor data
-typedef struct _SensorData
-{
-  int8_t temp;
-  int8_t humidity;
-  int8_t pressure;
-  int8_t tempf; // decimal part
-}
-SensorData;
-
 SensorData getValues(Adafruit_BME280 &);
 
 unsigned long delayTime = 100;
 
-// Used to reset
+// Used to reset (i.e , when called it makes processor to crash and that's all...)
 void(* resetFunc) (void) = 0;
 
-//////////////////////////////////////////////////////////////////////////
-// WDT Interrupt
-
+///////////////////////////////////
+// WDT Interrupt and related
+//////////////////////////////////
 ISR(WDT_vect)
 {
+  // Count times we wakeup
   awakes++;
   reset++;
 }
@@ -118,10 +126,10 @@ void wdt_init(void)
     return;
 }
 
-//////////////////////////////////////////////////////////////////////////
-// Sleep Configuration Function
+///////////////////////////////////////
+//  Enter sleep Configuration Function
 //   Also wake-up after
-
+//////////////////////////////////////
 void enterSleep(void)
 { 
   WDTCSR |= _BV(WDIE); // Assure WDT active
@@ -455,6 +463,11 @@ bool setupBoard(Adafruit_BME280 *board, bool bPressure, uint8_t addr)
     return true;
 }
 
+/////////////////////////////////////////
+// Spline adjustemt of thermistor curve
+////////////////////////////////////////
+
+// Calibrated table of temp/resistance thermistor curve
 // Values between -5 and 45 temperature degrees
 const int N = 11;
 const float temps[N] = {-5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45};
@@ -462,6 +475,7 @@ const float resist[N] = {12300, 9423, 7282, 5672, 4450, 3515, 2796, 2238, 1802, 
 
 float a[N], b[N], c[N], d[N], h[N - 1], alpha[N - 1], l[N], mu[N], z[N];
 
+// IA generated for best fit 10 points to the curve
 void computeSplineCoefficients() 
 {
   for (int i = 0; i < N - 1; i++) {
@@ -494,6 +508,7 @@ void computeSplineCoefficients()
   }
 }
 
+// IA generated for best fit 10 points to the curve
 float interpolateTemperature(float R) 
 {
   for (int i = 0; i < N - 1; i++) {
@@ -515,6 +530,8 @@ float interpolateTemperature(float R)
   return NAN;
 }
 
+// Use the ADC to measure voltage through the thermistor, from there get the resistance
+// and use the spline to interpolate temperature
 void readThermistorTemperature(SensorData &data)
 {
   // data.temp = 22;
@@ -526,6 +543,7 @@ void readThermistorTemperature(SensorData &data)
   float T = 0.0;
 
 #ifdef ADC_POWERED_BY_PIN
+  // Let's see if with this we save battery power
   pinMode(5, OUTPUT);
   digitalWrite(5, HIGH);
 
@@ -652,7 +670,6 @@ void loop()
   SensorData dat1 ={0,0,0};
   SensorData dat2 ={0,0,0};
    
-
   //Serial.println(awakes);
   if(awakes < maxAwakes)
   {
@@ -689,7 +706,6 @@ void loop()
   readThermistorTemperature(dat2);
   
   delay(delayTime); 
-    
     
   //delay(5000);
  #ifdef SHOW_SERIAL
@@ -794,7 +810,7 @@ void loop()
     enterSleep();
 }
 
-
+// Get BME280 sensor values
 SensorData getValues(Adafruit_BME280 &bme) 
 {
   SensorData dat{0,0,0};
@@ -819,10 +835,6 @@ SensorData getValues(Adafruit_BME280 &bme)
   Serial.print(" hPa");
   Serial.print("\t\t"); 
 #endif
-    
-  //Serial.print("Approx. Altitude = ");
-  //Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
-  //Serial.println(" m");
 
   float humidity = bme.readHumidity();
 
@@ -836,10 +848,6 @@ SensorData getValues(Adafruit_BME280 &bme)
   dat.temp = (uint8_t)temp; //trunc(temp*100)/100;
   dat.humidity = (uint8_t)humidity;
   dat.pressure = (pressure - 1000);
-    
-  //mySwitch.send(1000 + aux, SIZE_BITS);
-  //aux = trunc(humidity*100)/100;
-  //mySwitch.send(1000 + aux, SIZE_BITS);
 
   return dat;
 #endif
