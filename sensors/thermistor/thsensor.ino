@@ -115,17 +115,6 @@ ISR(WDT_vect)
   reset++;
 }
 
-// Function Pototype
-void wdt_init(void) __attribute__ ((naked, used, section(".init3")));
-
-// Function Implementation
-void wdt_init(void)
-{
-    MCUSR = 0;
-    wdt_disable();
-    return;
-}
-
 ///////////////////////////////////////
 //  Enter sleep Configuration Function
 //   Also wake-up after
