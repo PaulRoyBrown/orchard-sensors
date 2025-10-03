@@ -8,7 +8,8 @@ The pair of sensors controller by the Arduino Mini Pro can be:
 - A couple of Bosch **BME-280**
 - A BME-280 and a **thermistor**. (calibrated thermistor for better accuracy)
  
-Sensors board is powered by a solar panel (2.5W 5V/500mAh) that feeds a LiPo battery, and load during day and discharge duriong nigh is controlled by a MCP78371 chip. Being powered by battery is important to monitor battery voltage, so sensors board have a power saving mechanism based on voltage monitoring.
+Sensors board is powered by a solar panel (2.5W 5V/500mAh) that feeds a LiPo battery, and load during day and discharge duriong nigh is controlled by a MCP78371 chip. Being powered by battery is important to monitor battery voltage, so sensors board have a power saving mechanism based on voltage monitoring. 
+Battery capacity is 150mA or 350mA and sensor data is sent via RF in 4333Mhz band. During day, a couple of messages are sent each minute. During night, in winter, voltage monitoring sensor board enters in power save mode sending messages each 3 min. This is enough to keep this level all night (and even some days if no solar power is present). In case voltage decreases even more (very unusual), messages are sent each 10min, and even each 30min. This state can be mantained for much more than a week.      
 
 <h2>Server board (ESP8266-E12)</h2>
 The ESP also reads a water flow counter and a solenoid valve to shut off the water flow if some given amount of time has elapsed. 
