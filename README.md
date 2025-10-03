@@ -5,7 +5,8 @@ This allows to have the sensors up to 150m away (orchard or garden) of the point
 The pair of sensors controller by the Arduino Mini Pro can be:
 - A couple of Bosch **BME-280**
 - A BME-280 and a **thermistor**. (calibrated hermistor for better accuracy)
-Sensors board is powered by a solar panel (2.5W 5V/500mAh) that feeds a LiPo battery, and load during day and discharge duriong nigh is controlled by a MCP78371 chip.
+ 
+Sensors board is powered by a solar panel (2.5W 5V/500mAh) that feeds a LiPo battery, and load during day and discharge duriong nigh is controlled by a MCP78371 chip. Being powered by battery is important to monito battery voltage, so sensors board have a power saving mechanism based on voltage monitoring.
 
 The ESP also reads a water flow counter and a solenoid valve to shut off the water flow if some given amount of time has elapsed. 
 The motivation, is to detect if there is some problem in the main pipe that feeds a couple of automatic water irrigation timers, so if they got stuck or the pipe is broken the water flow can be closed without human intervention and prevent surprises in water fee.
