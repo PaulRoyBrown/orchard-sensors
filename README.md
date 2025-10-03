@@ -7,7 +7,7 @@ The pair of sensors can be:
 - A BME-280 and a thermistor. (thermistor for better accuracy)
 
 The ESP also reads a water flow counter and a solenoid valve to shut off the water flow if some given amount of time has elapsed. 
-The motivation, is to detect if there is some problem in the main pipe that feeds a couple of automatic water irrigation timers, so if they got stuck or the pipe is broken the water flow can be closed without human intervention.
+The motivation, is to detect if there is some problem in the main pipe that feeds a couple of automatic water irrigation timers, so if they got stuck or the pipe is broken the water flow can be closed without human intervention and prevent surprises in water fee.
 Water devices are:
 - A solenoide valve revamped from an old water irrigation timer
 - A HAll effect water flowmeter, that provides pulses that are counted by ESP as interrupts per time interval.
