@@ -4,6 +4,7 @@ This allows to have the sensors up to 150m away (orchard or garden) of the point
 
 <h2>Sensors Board (Mini Pro)</h2>
 The pair of sensors controller by the Arduino Mini Pro can be:
+
 - A couple of Bosch **BME-280**
 - A BME-280 and a **thermistor**. (calibrated hermistor for better accuracy)
  
