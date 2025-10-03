@@ -23,11 +23,12 @@ This is enough to keep this level all night with no problem (and even some days 
 Measured current consuptiom is about 180uA for the two BME280 sensors board version. For thermistor, raises to 700uA (and i'm trying to resuce that)
 
 <h2>Server board (ESP8266-E12)</h2>
-The ESP also reads a water flow counter and a solenoid valve to shut off the water flow if some given amount of time has elapsed. 
+Server is placed outside, up in one wall of my house where WiFi access is feasible, so it can open a session in ThingerIO cloud.
 
-The motivation, is to detect if there is some problem in the main pipe that feeds a couple of automatic water irrigation timers, so if they got stuck or the pipe is broken the water flow can be closed without human intervention and prevent surprises in water fee.
+My ESP server also reads a water flow counter and a solenoid valve to shut off the water flow if some given amount of time has elapsed. 
+The motivation, is to detect if there is some problem in the main pipe that feeds a couple of automatic water irrigation timers, so if they got stuck or the pipe is broken the water flow can be closed without human intervention and prevent surprises in monthly water fee.
 
-Water devices are:
+Water control devices are:
 - A solenoid valve revamped from an old water irrigation timer,
 - A DC dual H-Bridge motor controller driver board, based on MX1616 controller, to command the valve.
 - A Hall effect water flowmeter, that provides pulses that are counted by ESP as interrupts per time interval.
