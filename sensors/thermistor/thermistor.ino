@@ -539,27 +539,30 @@ void readThermistorTemperature(SensorData &data)
 
 #ifdef ADC_POWERED_BY_PIN
   Adafruit_ADS1115 adc;
+  Adafruit_ADS1115 &myAdc = adc; // Referece the local object
+#else
+  Adafruit_ADS1115 &myAdc = ads; // Referece the global object
+#endif
 
-  // Let's see if with this we save battery power
+   // Let's see if with this we save battery power
   pinMode(5, OUTPUT);
   digitalWrite(5, HIGH);
 
-  adc.begin();
-  adc.setGain(GAIN_SIXTEEN); //+/- 0.256V  1 bit = 0.0078125mV 
-#endif
+  myAdc.begin();
+  myAdc.setGain(GAIN_SIXTEEN); //+/- 0.256V  1 bit = 0.0078125mV 
 
   pinMode(THERMISTOR_POWER_PIN, OUTPUT);
   digitalWrite(THERMISTOR_POWER_PIN, HIGH);
   delay(100); 
 
   delay(THERMISTOR_CURRENT_TIME);
-  adc0 = adc.readADC_Differential_0_1();
+  adc0 = myAdc.readADC_Differential_0_1();
   
   pinMode(THERMISTOR_POWER_PIN, INPUT);
   digitalWrite(THERMISTOR_POWER_PIN, LOW);
 
 #ifdef ADC_POWERED_BY_PIN  
-  adc.conversionComplete();
+  myAdc.conversionComplete();
 
   delay(500);
   digitalWrite(5, LOW);
@@ -610,7 +613,7 @@ void setup()
     pinMode(5, OUTPUT);    // DEBE ESTAR SI NO HAY ADC ALIMENTADO POR PIN 5
     digitalWrite(5, HIGH);
   
-  delay(100);
+    delay(100);
     ads.setGain(GAIN_SIXTEEN);    //+/- 0.256V  1 bit = 0.0078125mV 
     ads.begin();
 
