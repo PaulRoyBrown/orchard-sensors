@@ -14,6 +14,8 @@ The pair of sensors controller by the Arduino Mini Pro can be:
 - A couple of Bosch **BME-280**
 - A BME-280 and a **thermistor** (calibrated thermistor for better accuracy) with an **ADS1115** ADC chip to measure thermistor voltage.
  
+With two sensor, we can measure air and soil temperature. I'm now measuring soil temperature at 60cm below ground. (Why?...Because of curiosity....Will average temperature at that depth slowly increase due to global warming?...not in the three years I'm been watching...)
+
 Sensors board is powered by a solar panel (2.5W 5V/500mAh) that feeds a LiPo battery, and loads during day and discharges during night. This is controlled by a **MCP78371** chip.
 Being powered by battery, is important to monitor battery voltage, so sensors board have a power saving mechanism based on its own voltage monitoring. 
 
