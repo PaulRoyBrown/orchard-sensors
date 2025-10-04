@@ -52,10 +52,10 @@ bool boardOk = false;
 #define THERMISTOR_POWER_PIN    8
 #define THERMISTOR_CURRENT_UA   30.89 // Constant current µA. Important to be well measured!!
 #define THERMISTOR_CURRENT_TIME 100
-//#define ADC_POWERED_BY_PIN // A try to see if I can reduce power comsuption by switching ADC with a GPIO
+#define ADC_POWERED_BY_PIN // A try to see if I can reduce power comsuption by switching ADC with a GPIO
 
 // We measure the thermistor voltage with this ADC chip
-Adafruit_ADS1115 ads;
+//Adafruit_ADS1115 ads;
 
 const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convert to amps
 float multiplier = 0.0078125F; // Scale factor ADC
@@ -175,7 +175,7 @@ unsigned long add_voltage_sample(unsigned long sample)
 // With this method, comsumption go from 90uA to 245uA !
 long readVcc() 
 {
-  //return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
+  return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
  
   uint8_t copy =   (*(volatile uint8_t *)(0x7C));
   // Read 1.1V reference against AVcc
@@ -538,12 +538,14 @@ void readThermistorTemperature(SensorData &data)
   float T = 0.0;
 
 #ifdef ADC_POWERED_BY_PIN
+  Adafruit_ADS1115 adc;
+
   // Let's see if with this we save battery power
   pinMode(5, OUTPUT);
   digitalWrite(5, HIGH);
 
-  ads.begin();
-  ads.setGain(GAIN_SIXTEEN); // ±0.512V, resolución 15.625 µV/bit
+  adc.begin();
+  adc.setGain(GAIN_SIXTEEN); //+/- 0.256V  1 bit = 0.0078125mV 
 #endif
 
   pinMode(THERMISTOR_POWER_PIN, OUTPUT);
@@ -551,15 +553,15 @@ void readThermistorTemperature(SensorData &data)
   delay(100); 
 
   delay(THERMISTOR_CURRENT_TIME);
-  adc0 = ads.readADC_Differential_0_1();
+  adc0 = adc.readADC_Differential_0_1();
   
   pinMode(THERMISTOR_POWER_PIN, INPUT);
   digitalWrite(THERMISTOR_POWER_PIN, LOW);
 
 #ifdef ADC_POWERED_BY_PIN  
-  ads.conversionComplete();
+  adc.conversionComplete();
 
-  delay(100);
+  delay(500);
   digitalWrite(5, LOW);
   pinMode(5, INPUT);
 #endif
@@ -697,10 +699,6 @@ void loop()
   }
     
   awakes = 0;
-
-  readThermistorTemperature(dat2);
-  
-  delay(delayTime); 
     
   //delay(5000);
  #ifdef SHOW_SERIAL
@@ -740,6 +738,10 @@ void loop()
   digitalWrite(BME_CS_BOARD, HIGH);
   pinMode(BME_CS_BOARD, INPUT);
 
+  delay(delayTime);
+  readThermistorTemperature(dat2);
+  delay(delayTime); 
+  
   //unsigned long data = set_message(0xA,dat1.temp,dat2.temp,dat1.humidity,dat2.humidity);
   unsigned long data = set_message3(0xC,dat1.temp,dat2.temp,dat1.humidity,dat2.tempf);
   pinMode(RF_POWER_PIN, OUTPUT);
