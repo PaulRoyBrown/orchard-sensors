@@ -55,7 +55,7 @@ bool boardOk = false;
 #define ADC_POWERED_BY_PIN // A try to see if I can reduce power comsuption by switching ADC with a GPIO
 
 // We measure the thermistor voltage with this ADC chip
-//Adafruit_ADS1115 ads;
+Adafruit_ADS1115 ads; //Global object
 
 const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convert to amps
 float multiplier = 0.0078125F; // Scale factor ADC
