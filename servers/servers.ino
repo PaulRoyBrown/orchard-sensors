@@ -26,8 +26,8 @@ used. To use it, a couple of GPIO pins are needed to open or close the valve.
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <Hash.h>
-//#include <ESPAsyncTCP.h>
-//#include <ESPAsyncWebSrv.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebSrv.h>
 #include <RCSwitch.h>
 #include <ThingerESP8266.h>
 
@@ -37,11 +37,17 @@ RCSwitch mySwitch;
 
 String gMyIP = "";
 
-// Registered user and device in ThingerIO (name,token)
-ThingerESP8266 thing("Boli", "DeviceIdCasa", "ZZZZ");
+#define SERVER_CASA
 
-// A different registered device for same user
-//ThingerESP8266 thing("Boli", "DeviceIdHuerto", "ZZZZZ);
+#ifdef SERVER_CASA
+ThingerESP8266 thing("Boli", "DeviceIdCasa", "XYZ_Token");
+#define HEADER_PKG_1 0xC
+#define HEADER_PKG_2 0xD
+#elif
+ThingerESP8266 thing("Boli", "DeviceIdHuerto", "XYZ_Token");
+#define HEADER_PKG_1 0xA
+#define HEADER_PKG_2 0xB
+#endif
 
 const uint8_t RF433_RX_MARK_PIN = 2;
 const uint8_t RF433_RX_RECEIVE_PIN = 14;
@@ -64,7 +70,9 @@ float avg = 0;
 
 
 
-/// List of wifi SSID's to which we connect, and from which we check for an update
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80); 
+/// List of wifi SSID's from which we check for an update
 struct Wifi
 { 
   const char *ssid;
@@ -785,6 +793,14 @@ bool check_header(uint8_t head,unsigned long v)
     return (x == head);
 }
 
+void flashLed()
+{
+  // Onboard led 4
+    digitalWrite (RF433_RX_MARK_PIN, LOW); // Making LED High.
+    delay(50);              // Some Delay
+    digitalWrite (RF433_RX_MARK_PIN, HIGH);  // Making LED LOW.
+}
+
 void loop()
 {
   uint32_t rfValue = 0;
@@ -793,7 +809,7 @@ void loop()
 
   thing.handle();
 
-  digitalWrite (RF433_RX_MARK_PIN, HIGH); 
+  //digitalWrite (RF433_RX_MARK_PIN, HIGH); 
    
   if (mySwitch.available())
   {
@@ -808,14 +824,12 @@ void loop()
     
     Serial.print("Received ");
     Serial.println(rfValue);
-
-    // check packet header
-    //      
-    if(check_header(0xA,rfValue))
+ 
+    if(check_header(HEADER_PKG_1,rfValue))
     {
       lastRfValue = rfValue;
       
-      Serial.println("HEADER 0xA ");
+      Serial.println("HEADER 1 ");
       humCable = get_val(rfValue,0,false);
       humSonda = get_val(rfValue,1,false);
       tempCable = get_val(rfValue,2,true);
@@ -831,12 +845,14 @@ void loop()
       Serial.println(tempCable);
       
       lastReception = now;
+
+      flashLed();
     }
-    else if(check_header(0xB,rfValue))
+    else if(check_header(HEADER_PKG_2,rfValue))
     {
        lastRfValue = rfValue;
 
-       Serial.println("HEADER 0xB ");
+       Serial.println("HEADER 2 ");
       //        voltage  pressure   state   unused
       // 1011 |  13bit  | 7bit    | 2bit  | 000
       // Pressure is relative to 1000
@@ -861,6 +877,8 @@ void loop()
       Serial.println(voltage);
       
       lastReception = now;
+
+      flashLed();
     }
     else if(check_header(0x9,rfValue))
     {  
@@ -916,6 +934,8 @@ void loop()
 
         //lastReception = now;
         lastReception2 = now;
+
+        flashLed();
       }
     }
     else

@@ -55,7 +55,9 @@ bool boardOk = false;
 //#define ADC_POWERED_BY_PIN // A try to see if I can reduce power comsuption by switching ADC with a GPIO
 
 // We measure the thermistor voltage with this ADC chip
-Adafruit_ADS1115 ads;
+Adafruit_ADS1115 ads; //Global object
+
+bool bData = false;
 
 const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convert to amps
 float multiplier = 0.0078125F; // Scale factor ADC
@@ -115,6 +117,13 @@ ISR(WDT_vect)
   reset++;
 }
 
+void adcISR()
+{
+  bData = true;
+  
+  Serial.println("INTR");
+}
+
 ///////////////////////////////////////
 //  Enter sleep Configuration Function
 //   Also wake-up after
@@ -132,6 +141,7 @@ void enterSleep(void)
   power_twi_disable(); // Close TWI without closing Wire
 
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+
   sleep_enable();
   sleep_mode(); // Enter sleep here
 
@@ -175,7 +185,7 @@ unsigned long add_voltage_sample(unsigned long sample)
 // With this method, comsumption go from 90uA to 245uA !
 long readVcc() 
 {
-  //return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
+  return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
  
   uint8_t copy =   (*(volatile uint8_t *)(0x7C));
   // Read 1.1V reference against AVcc
@@ -299,6 +309,9 @@ void setup_wdt()
    // Configure: 8 sec + interrupt, not reset
   //WDTCSR = (1 << WDIE) | 1<<WDP0 | 1<<WDP3; 
   
+  //MCUCR = bit (BODS) | bit (BODSE);  // turn on brown-out enable select
+  //MCUCR = bit (BODS);        // this must be done within 4 clock cycles of above
+
   sei();           // Reset interrupts handling
 }
 
@@ -538,28 +551,65 @@ void readThermistorTemperature(SensorData &data)
   float T = 0.0;
 
 #ifdef ADC_POWERED_BY_PIN
+  Adafruit_ADS1115 adc;
+  Adafruit_ADS1115 &myAdc = adc; // Referece the local object
+
+  // Feed the ADC
   // Let's see if with this we save battery power
   pinMode(5, OUTPUT);
   digitalWrite(5, HIGH);
 
-  ads.begin();
-  ads.setGain(GAIN_SIXTEEN); // ±0.512V, resolución 15.625 µV/bit
+  myAdc.begin();
+  myAdc.setGain(GAIN_SIXTEEN); //+/- 0.256V  1 bit = 0.0078125mV 
+#else
+// ADC is feeded from setup so no need to do it here  
+  Adafruit_ADS1115 &myAdc = ads; // Referece the global object
+
+  digitalWrite(5, HIGH);
 #endif
+
 
   pinMode(THERMISTOR_POWER_PIN, OUTPUT);
   digitalWrite(THERMISTOR_POWER_PIN, HIGH);
   delay(100); 
 
   delay(THERMISTOR_CURRENT_TIME);
-  adc0 = ads.readADC_Differential_0_1();
   
-  pinMode(THERMISTOR_POWER_PIN, INPUT);
+  //adc0 = myAdc.readADC_Differential_0_1();
+
+  myAdc.startADCReading(ADS1X15_REG_CONFIG_MUX_DIFF_0_1, false); //This jumps to 440uA
+
+  // Wait for the conversion to complete
+  // while (!myAdc.conversionComplete())
+  // {
+  //   delay(100);
+  //   Serial.print("Retry");
+  // };
+
+  unsigned long n = 0;
+  while(!bData)
+  {
+    delay(200);
+    Serial.print("Retry n=");
+    Serial.println(n);
+    n++;
+  }
+
+  bData = false;
+  if(myAdc.conversionComplete())
+  {
+    // Read the conversion results
+    adc0 =  myAdc.getLastConversionResults();
+      //digitalWrite(5, LOW); // With this, goes from 445uA to 280uA
+  }
+  
   digitalWrite(THERMISTOR_POWER_PIN, LOW);
+  pinMode(THERMISTOR_POWER_PIN, INPUT);
 
 #ifdef ADC_POWERED_BY_PIN  
-  ads.conversionComplete();
+  myAdc.conversionComplete();
 
-  delay(100);
+  delay(500);
   digitalWrite(5, LOW);
   pinMode(5, INPUT);
 #endif
@@ -599,7 +649,8 @@ void setup()
   Serial.println("sensor_huerto_sleep_thermistor"); 
 
   computeSplineCoefficients();
-
+  attachInterrupt(digitalPinToInterrupt(3), adcISR, RISING);  
+  
   Serial.println("Coefficients ok");
 
   // Config ADS1115 
@@ -608,7 +659,7 @@ void setup()
     pinMode(5, OUTPUT);    // DEBE ESTAR SI NO HAY ADC ALIMENTADO POR PIN 5
     digitalWrite(5, HIGH);
   
-  delay(100);
+    delay(100);
     ads.setGain(GAIN_SIXTEEN);    //+/- 0.256V  1 bit = 0.0078125mV 
     ads.begin();
 
@@ -697,11 +748,11 @@ void loop()
   }
     
   awakes = 0;
-
-  readThermistorTemperature(dat2);
-  
-  delay(delayTime); 
     
+  delay(delayTime);
+  readThermistorTemperature(dat2);
+  delay(delayTime); 
+
   //delay(5000);
  #ifdef SHOW_SERIAL
   Serial.print("Sensor Board: ");
@@ -739,13 +790,15 @@ void loop()
 
   digitalWrite(BME_CS_BOARD, HIGH);
   pinMode(BME_CS_BOARD, INPUT);
-
+  
   //unsigned long data = set_message(0xA,dat1.temp,dat2.temp,dat1.humidity,dat2.humidity);
   unsigned long data = set_message3(0xC,dat1.temp,dat2.temp,dat1.humidity,dat2.tempf);
   pinMode(RF_POWER_PIN, OUTPUT);
   digitalWrite(RF_POWER_PIN, HIGH);
   mySwitch.send(data, SIZE_BITS);
-    
+  
+  digitalWrite(RF_POWER_PIN, LOW);
+
 #ifdef SHOW_SERIAL 
   //show_bits_long(data);
   Serial.print("ValueSent: ");
@@ -798,9 +851,9 @@ void loop()
     delay(delayTime); 
     
     //pinMode(BME_SCK, INPUT);
-    //pinMode(BME_CS_BOARD, INPUT);
+    pinMode(BME_CS_BOARD, INPUT);
    
-
+  digitalWrite(5, LOW); // With this, goes from 445uA to 280uA
     /* Re-enter sleep mode. */
     enterSleep();
 }
