@@ -14,7 +14,7 @@ The pair of sensors controller by the Arduino Mini Pro can be:
 - A couple of Bosch **BME-280**
 - A BME-280 and a **thermistor** (calibrated thermistor for better accuracy) with an **ADS1115** ADC chip to measure thermistor voltage.
  
-With two sensor, we can measure air and soil temperature. I'm now measuring soil temperature at 60cm below ground. (Why?...Because of curiosity....What's the phase delay between a peak in temperature at gorund level and 60cm below?.Will average temperature at that depth slowly increase due to global warming?...not in the three years I'm been watching...)
+With two sensor, we can measure air and soil temperature. I'm now measuring soil temperature at 60cm below ground. (Why?...Because of curiosity....What's the phase delay between a peak in temperature at ground level and 60cm below it?.Will average temperature at that depth slowly increase due to global warming?...not in the three years I'm been watching...)
 
 Sensors board is powered by a solar panel (2.5W 5V/500mAh) that feeds a LiPo battery, and loads during day and discharges during night. This is controlled by a **MCP78371** chip.
 Being powered by battery, is important to monitor battery voltage, so sensors board have a power saving mechanism based on its own voltage monitoring. 
@@ -23,7 +23,7 @@ Battery capacity is 150mA or 350mA and sensor data is sent via RF in 4333Mhz ban
 
 This is enough to keep this level all night with no problem (and even some days if no solar power is present). In case voltage decreases even more (very unusual), messages are sent each 10min, and even each 30min. This state can be mantained for much more than a week.
 
-Measured current consuptiom in sleep state is about 180uA for the two BME280 sensors board version. For thermistor version, raises to 700uA (and i'm trying to reduce that).When board wakes up each minute and measures and sends RF data, current jumps to 8mA for 5 seconds or so.
+Measured current consuptiom in sleep state is about 180uA for the two BME280 sensors board version. For thermistor version, raises to 700uA (and i'm trying to reduce that).When board wakes up each minute and measures and sends RF data, current jumps to 8mA for 5 seconds or so. Thermistor constant current used to do accurate measurments is produced by a typical **LM334**, soon to be replaced for the **REF200U** chip, with lower temperature drift.
 
 <h2>Server board (ESP8266-E12)</h2>
 My ESP server also reads a water flow counter and a solenoid valve to shut off the water flow if some given amount of time has elapsed. 
