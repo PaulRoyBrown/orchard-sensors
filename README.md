@@ -2,6 +2,9 @@
 An Arduino project about using a couple of sensors attached to an **Arduino Mini Pro** to measure temperature and humidity and send data via RF433 to an **ESP8266 (E12)** that is connected to domestic WiFi and also controls flow of water in an irrigation pipe.
 This allows to have the sensors up to 150m away (orchard or garden) of the point where ESP8266 server can stay connected to internet (house), to send data to a ThingerIO **public** site, where data is graphed at one sample per minute.
 
+<img width="540" height="381" alt="image" src="https://github.com/user-attachments/assets/df27c676-24d6-482d-98f5-f5f88c70a33c" />
+
+
 Beside the two sensors (red and blue lines) I have also added another Arduino mini pro that just uses a single sensor to send environment data from inside my house (green line in next picture). )So in total,we receive RF messages from three sensors)
 
 <img width="1570" height="731" alt="image" src="https://github.com/user-attachments/assets/43d3f4d0-9b45-4532-90d5-284b1128df6d" />
