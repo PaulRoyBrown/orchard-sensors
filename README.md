@@ -39,4 +39,4 @@ Water control devices are:
 
 The ESP server receives RF data using typical superheterodyne **SRX882** chip. Each RF sensor sends messages with an identifier, and using that he knows how to parse its data (packed as a 32bit long type) and its origin (house or orchard). 
 
-Server is placed outside, up in one wall of my house where WiFi access is feasible, so it can open a session in ThingerIO cloud. It's inside a plastic box and feeded by a little 220V to 3.3V converter. Is attached to a six wire cable that receives the cables for solenoid valve and waterflow meter. 
+Server box is placed outside, up in one wall of my house where WiFi access is feasible, so it can open a session in ThingerIO cloud. It's inside a plastic box and feeded by a little 220V to 3.3V converter. Is attached to a six wire cable that receives the cables for solenoid valve and waterflow meter (red lines in picture above). 
