@@ -1,5 +1,5 @@
 # orchard-sensors
-An Arduino project about using a couple of sensors attached to an **Arduino Mini Pro** to measure temperature and humidity and send data via RF433 to an **ESP8266 (E12)** that is connected to domestic WiFi and also controls flow of water in an irrigation pipe.
+An Arduino project about using a couple of sensors attached to an **Arduino Mini Pro** to measure temperature and humidity in my orchard and send data via RF433 to an **ESP8266 (E12)** that is connected to domestic WiFi and also controls flow of water in an irrigation pipe.
 This allows to have the sensors up to 150m away (orchard or garden) of the point where ESP8266 server can stay connected to internet (house), to send data to a ThingerIO **public** site, where data is graphed at one sample per minute.
 
 <img width="540" height="381" alt="image" src="https://github.com/user-attachments/assets/df27c676-24d6-482d-98f5-f5f88c70a33c" />
