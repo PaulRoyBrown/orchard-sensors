@@ -30,7 +30,7 @@ Measured current consuptiom in sleep state is about 180uA for the two BME280 sen
 
 <h2>Server board (ESP8266-E12)</h2>
 My ESP server also reads a water flow counter and a solenoid valve to shut off the water flow if some given amount of time has elapsed. 
-The motivation, is to detect if there is some problem in the main pipe that feeds a couple of automatic water irrigation timers, so if they got stuck or the pipe is broken the water flow can be closed without human intervention and prevent surprises in monthly water fee.
+The motivation, is to detect if there is some problem in the main pipe that feeds a couple of automatic water irrigation timers placed in the orchard, so if they got stuck or the pipe is broken the water flow can be closed without human intervention and prevent surprises in monthly water fee. (Pipe broke once, and water was flowing all night long...) 
 
 Water control devices are:
 - A solenoid valve revamped from an old water irrigation timer,
