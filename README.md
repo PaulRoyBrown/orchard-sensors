@@ -33,7 +33,7 @@ My ESP server also reads a water flow counter and a solenoid valve to shut off t
 The motivation, is to detect if there is some problem in the main pipe that feeds a couple of automatic water irrigation timers placed in the orchard, so if they got stuck or the pipe is broken the water flow can be closed without human intervention and prevent surprises in monthly water fee. (Pipe broke once, and water was flowing all night long...) 
 
 Water control devices are:
-- A solenoid valve revamped from an old water irrigation timer,
+- A solenoid valve revamped from an old water irrigation timer, like [this](https://www.amazon.es/Temporizador-Automatico-Acoplamiento-Aplicables-Programador/dp/B07WSWNPPH?pd_rd_w=h13JV&content-id=amzn1.sym.20817a10-d709-4b1f-b971-9466d7e8ae8d&pf_rd_p=20817a10-d709-4b1f-b971-9466d7e8ae8d&pf_rd_r=GN6S7M7MD3MNNQ2PWESW&pd_rd_wg=ykqpR&pd_rd_r=00232e09-464d-4d5b-b19d-6409ca1d73be&ref_=pd_bap_d_grid_rp_csi_pd_ys_c_rfy_rp_crs_0_t&th=1)
 - A DC dual H-Bridge motor controller driver board, based on **MX1616** controller, to command the valve.
 - A Hall effect water flowmeter, that provides pulses that are counted by ESP as interrupts per time interval.
 
