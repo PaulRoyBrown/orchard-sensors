@@ -118,7 +118,7 @@ void adcISR()
 {
   bData = true;
   
-  Serial.println("INTR");
+  //Serial.println("INTR");
 }
 
 ///////////////////////////////////////
