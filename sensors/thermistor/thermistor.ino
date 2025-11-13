@@ -17,8 +17,7 @@
 
 #define SHOW_SERIAL  // Define to trace on serial port
 //#define NO_SENSOR    // For bit math tests 
-
-#define MAX_AVG_SAMPLES 5
+//#define ADC_POWERED_BY_PIN // A try to see if I can reduce power comsuption by switching ADC with a GPIO
 
 /////////////////////////////
 // RCSwitch to transmit data
@@ -27,7 +26,6 @@
 #define RF_POWER_PIN 9
 #define RF_TX_PIN 4
 #define SIZE_BITS 32 
-//#define LED_STATE 2  //ligh LED on transmit 
 
 RCSwitch mySwitch = RCSwitch();
 
@@ -52,7 +50,6 @@ bool boardOk = false;
 #define THERMISTOR_POWER_PIN    8
 #define THERMISTOR_CURRENT_UA   30.89 // Constant current µA. Important to be well measured!!
 #define THERMISTOR_CURRENT_TIME 100
-//#define ADC_POWERED_BY_PIN // A try to see if I can reduce power comsuption by switching ADC with a GPIO
 
 // We measure the thermistor voltage with this ADC chip
 Adafruit_ADS1115 ads; //Global object
@@ -157,6 +154,7 @@ void enterSleep(void)
 ///////////////////////////////////////////
 
 // For averaging voltage battery measurement
+#define MAX_AVG_SAMPLES 5
 unsigned long samples[MAX_AVG_SAMPLES];
 unsigned long  mtotal = 0;
 unsigned long num_samples = 0;
@@ -439,12 +437,6 @@ bool setupBoard(Adafruit_BME280 *board, bool bPressure, uint8_t addr)
 {
   int n = 3;
 
-/*
-    digitalWrite(LED_STATE, HIGH); 
-    delay(200);
-    digitalWrite(LED_STATE, LOW); 
-    delay(200);
-*/
     // Maybe we should clean Wire here,or use other one Wire object,but Wire is an extern
     // declared somewhere
     
@@ -552,7 +544,7 @@ void readThermistorTemperature(SensorData &data)
 
 #ifdef ADC_POWERED_BY_PIN
   Adafruit_ADS1115 adc;
-  Adafruit_ADS1115 &myAdc = adc; // Referece the local object
+  Adafruit_ADS1115 &myAdc = adc; // Reference the local object
 
   // Feed the ADC
   // Let's see if with this we save battery power
@@ -579,20 +571,15 @@ void readThermistorTemperature(SensorData &data)
 
   myAdc.startADCReading(ADS1X15_REG_CONFIG_MUX_DIFF_0_1, false); //This jumps to 440uA
 
-  // Wait for the conversion to complete
-  // while (!myAdc.conversionComplete())
-  // {
-  //   delay(100);
-  //   Serial.print("Retry");
-  // };
-
   unsigned long n = 0;
   while(!bData)
   {
     delay(200);
+  #ifdef SHOW_SERIAL
     Serial.print("Retry n=");
     Serial.println(n);
     n++;
+  #endif
   }
 
   bData = false;
@@ -600,7 +587,6 @@ void readThermistorTemperature(SensorData &data)
   {
     // Read the conversion results
     adc0 =  myAdc.getLastConversionResults();
-      //digitalWrite(5, LOW); // With this, goes from 445uA to 280uA
   }
   
   digitalWrite(THERMISTOR_POWER_PIN, LOW);
@@ -655,8 +641,8 @@ void setup()
 
   // Config ADS1115 
  #ifndef ADC_POWERED_BY_PIN
- // OJO
-    pinMode(5, OUTPUT);    // DEBE ESTAR SI NO HAY ADC ALIMENTADO POR PIN 5
+    // Waych out!. This is due to my prototype board wiring. Should not be needed but it is for now!
+    pinMode(5, OUTPUT);  
     digitalWrite(5, HIGH);
   
     delay(100);
@@ -665,8 +651,7 @@ void setup()
 
     Serial.println("ADS1115 ok");
 #endif
- // pinMode(8, OUTPUT);
- // digitalWrite(8, HIGH);
+
 
   delay(50);
   setup_wdt();
@@ -680,9 +665,6 @@ void setup()
   bReboot = false;
 
   Serial.println("Initializing RF_TX"); 
-  
-  //Unused 
-  //pinMode(LED_STATE, OUTPUT);
 
   mySwitch.enableTransmit(RF_TX_PIN);
   mySwitch.setRepeatTransmit(20);
@@ -702,7 +684,6 @@ void setup()
     
   Serial.println();
 #endif
-  //pinMode(LED_STATE, INPUT);
 
   setup_wdt();
 
