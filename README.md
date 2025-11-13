@@ -5,7 +5,7 @@ This allows to have the sensors up to 150m away (orchard or garden) of the point
 <img width="540" height="381" alt="image" src="https://github.com/user-attachments/assets/df27c676-24d6-482d-98f5-f5f88c70a33c" />
 
 
-Beside the two sensors (red and blue lines) I have also added another Arduino mini pro that just uses a single sensor to send environment data from inside my house (green line in next picture). )So in total,we receive RF messages from three sensors)
+Beside the two sensors (red and blue lines in pictures) I have also added another Arduino mini pro that just uses a single sensor to send environment data from inside my house (green line in next picture). So in total,we receive RF messages from three sensors, two in orchard and one inside the house.
 
 <img width="1570" height="731" alt="image" src="https://github.com/user-attachments/assets/43d3f4d0-9b45-4532-90d5-284b1128df6d" />
 
