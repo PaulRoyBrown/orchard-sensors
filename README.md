@@ -26,7 +26,7 @@ Battery capacity is 150mA or 350mA and sensor data is sent via RF in 433Mhz band
 
 This is enough to keep this level all night with no problem (and even some days if no solar power is present). In case voltage decreases even more (very unusual), messages are sent each 10min, and even each 30min. This state can be mantained for much more than a week.
 
-Measured current consuptiom in sleep state is about 180uA for the two BME280 sensors board version. For thermistor version, raises to 700uA (and i'm trying to reduce that).When board wakes up each minute and measures and sends RF data, current jumps to 8mA for 5 seconds or so. Thermistor constant current used to do accurate measurments is produced by a typical **LM334**, soon to be replaced for the **REF200U** chip, with lower temperature drift.
+Measured current consuptiom in sleep state is about 180uA for the two BME280 sensors board version. For thermistor version, raises to 700uA (and i'm trying to reduce that).When board wakes up each minute and measures and sends RF data, current jumps to 8mA for 5 seconds or so. Thermistor constant current used to do accurate measurments is produced by a typical **LM334** current source, soon to be replaced for the **REF200U** chip, with lower temperature drift.
 
 <h2>Server board (ESP8266-E12)</h2>
 My ESP server also reads a water flow counter and a solenoid valve to shut off the water flow if some given amount of time has elapsed. 
