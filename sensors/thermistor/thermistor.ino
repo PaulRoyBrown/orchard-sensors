@@ -313,106 +313,214 @@ void setup_wdt()
   sei();           // Reset interrupts handling
 }
 
-// Pack value in 7 bit. 1st could be the sign if ig=true and six more the value
-// So we can send temperatures from -64 to 64 (2⁶6)
-// Altough we return 8bit here, in fact information is packed in the lower 7 bit
-// Last bit will be ignored and proper shotfs and AND will be used
-int8_t set_val(int8_t x,bool sig)
-{
-  int8_t sign=0;
-  char val =0x0;
+/**
+ Discriminator for the C type of data a value stores 
+*/
+enum ValueType {
+  Integer,
+  Float
+};
+
+/**
+Descriptor of a given Field that says how many bits a Value has
+*/
+struct Field {
+  uint8_t bits;
+  bool isSigned;
+  ValueType type;
+
+  Field(uint8_t b, bool s, ValueType t = Integer)
+    : bits(b), isSigned(s), type(t) {}
+};
+
+/** 
+  A Value to be stored and transmitted/received by RF. 
+  - A Value can be stored as a int or a float, and type says which it is
+  - Field stores the bits ocuppied by this Value (0 to 32bit)
+   TODO(Paul) use a union for this, to optimize size  
+*/
+struct Value {
+  Field field;
+  ValueType type;
+  int32_t intValue;
+  float floatValue;
+
+  Value() : field(0, false, Integer), type(Integer), intValue(0), floatValue(0.0f) {}
+
+  Value(int32_t v, Field f) : field(f), type(Integer), intValue(v), floatValue(0.0f) {}
+  Value(float v, Field f) : field(f), type(Float), intValue(0), floatValue(v) {}
+};
+
+/**
+  A class to pack and unpack an array of Values, each one described by its descriptor
+  Floats are sent as integers and changed to float in receiving side by dividing by proper factor.(now 100)
   
-  if(sig)
-  {
-    // Use first bit for sign
-    if(x>=0)
-    {
-      sign = 0;
-      val=  (x & 0x7F);
-    }
-    else
-    {
-      sign = 1;
-      val = (sign << 6) |(abs(x) & 0x7F);
+  NOTE:This class is exactly the same, by copy&paste, in the RF sending and reception sides.
+
+  TODO(Paul): Make the number of decimals to be transmitted customizable.Now, restricted to two decimals.
+              Also the number of bits used for header (now 2)  
+*/
+class MessagePacker {
+public:
+  static int32_t roundFloat(float f) {
+    return (f >= 0) ? (int32_t)(f + 0.5f) : (int32_t)(f - 0.5f);
+  }
+
+  static void validateRuntime(const Value& v) {
+    int32_t raw = (v.type == Float)
+      ? roundFloat(v.floatValue * 100.0f)
+      : v.intValue;
+
+    int32_t max = v.field.isSigned ? (1 << (v.field.bits - 1)) - 1 : (1 << v.field.bits) - 1;
+    int32_t min = v.field.isSigned ? -(1 << (v.field.bits - 1)) : 0;
+    if (raw < min || raw > max) 
+    {    
+      Serial.print("⚠️ Value out of range: "); // Always print it
+      Serial.println(raw);      
     }
   }
-  else
+
+  static uint32_t encode(const Value& v) 
   {
-      // 7 bits used for value
-      val = (x & 0x7F);      
+    validateRuntime(v);
+
+    int32_t raw = (v.type == Float)
+      ? roundFloat(v.floatValue * 100.0f)
+      : v.intValue;
+
+    // Generate a mask with as many '1' as number of bits in each field (-1) because bit shihts start with zero 
+    uint32_t mask = (1UL << v.field.bits) - 1;
+
+    if (v.field.isSigned) 
+    {
+      // Create mask with 1 in sign position
+      uint32_t signBit = (raw < 0) ? (1UL << (v.field.bits - 1)) : 0; 
+      // example for 5bit field: Generate 1UL << 5 = 0b00100000. Then, 0b00100000 - 1 = 0b00011111 is the value without sign 
+      uint32_t magnitude = (uint32_t)(abs(raw)) & ((1UL << (v.field.bits - 1)) - 1); 
+      return signBit | magnitude;
+    } 
+    else 
+    {
+      return (uint32_t)(raw) & mask; //Get only the bits in the field for this value
+    }
   }
 
-  return val; 
-}
+  static int32_t decode(uint32_t packed, const Field& f) 
+  {
+    uint32_t mask = (1UL << f.bits) - 1; // Mask to isolate value magnitude
+    packed &= mask;
 
-unsigned long set_message(uint8_t head,int8_t t1,int8_t t2,int8_t h1,int8_t h2)
-{
-  unsigned long val = 0;  
+    if (f.isSigned) 
+    {
+      // Generate mask to have a '1' exactly at sign bit
+      uint32_t signBit = 1UL << (f.bits - 1); 
+      bool isNegative = packed & signBit;
+      
+      // Sign bit minus 1 set '1s' in all bits before sign bit, which is what we need to get the value magnitude 
+      int32_t magnitude = packed & (signBit - 1);
+      return isNegative ? -magnitude : magnitude; // Notice we return a signed type to include sigh
+    } 
+    else 
+    {
+      return (int32_t)(packed);
+    }
+  }
+
+  static float decodeFloat(int32_t raw) 
+  {
+    return ((float)raw) / 100.0f;
+  }
+
+  static uint32_t pack(uint8_t header, Value values[], uint8_t count) 
+  {
+    uint8_t totalBits = 0;
+    for (uint8_t i = 0; i < count; ++i) 
+    {
+      totalBits += values[i].field.bits;
+    }
+
+    if (totalBits > 30) // 28 for 4bit header 
+    {
+      Serial.print("Error: total bits = "); // Always print it
+      Serial.println(totalBits);
+
+      return 0U;
+    }
+
+    // Move header bits at the beginning of the 32bit value
+    uint32_t result = ((uint32_t)(header & 0x03)) << 30;
+
+    // uint32_t result = ((uint32_t)(header & 0x0F)) << 28; For 4bit header
+
+    uint8_t offset = 0;
+
+  // For each field, encode and move its number of field. then move ahead its size
+    for (uint8_t i = 0; i < count; ++i) 
+    {
+      result |= encode(values[i]) << offset;
+      offset += values[i].field.bits;
+    }
+
+    return result;
+  }
+
+  static void unpack(uint32_t packed, Field fields[], Value values[], uint8_t count) 
+  {
+    uint8_t offset = 0;
+
+    for (uint8_t i = 0; i < count; ++i) 
+    {
+      uint32_t mask = (1UL << fields[i].bits) - 1;
+      uint32_t raw = (packed >> offset) & mask;
+      int32_t decoded = decode(raw, fields[i]);
+
+      if (fields[i].type == Float) 
+      {
+        values[i] = Value(decodeFloat(decoded), fields[i]);
+      } 
+      else 
+      {
+        values[i] = Value(decoded, fields[i]);
+      }
+
+      offset += fields[i].bits;
+    }
+  }
+
+  static void inspectMessage(uint32_t packed, Field fields[], uint8_t count) 
+  {
   
-  uint16_t x1 = ((uint16_t)set_val(h1,false) << 7 ) | ((uint16_t)set_val(h2,false));
-  uint16_t x2 = ((uint16_t)set_val(t1,true) << 7 ) | ((uint16_t)set_val(t2,true) );
+    Value values[4];
+    unpack(packed, fields, values, count);
 
-  // head of 4bit starts at 28, then 14 bit for temperature as two 6bit values both with signn (so 14bit), and then 7+7=14bits for humidity (0 to 100)
-  // That makes 32bit
-  val =  ( ( (uint32_t)head << 28) |((uint32_t)x2 << 14)| ((uint32_t) (x1 & 0x3FFF)) );  
+    Serial.println("\n🔍 Message:");
+    Serial.print("Header = ");
+    Serial.println((packed >> 30) & 0x03);
 
-    // head  16        -1     2       127
-  //  1010 0010000 1000001 0000010 1111111
-  //  val=   10000 1000001 0000010 1111111
-#ifdef SHOW_SERIAL
-  Serial .print("val=");  
-  Serial.print(val,BIN);
-  Serial .println("");
-#endif
-
-  return val; 
-}
+    for (uint8_t i = 0; i < count; ++i) {
+      Serial.print("Campo ");
+      Serial.print(i);
+      Serial.print(": ");
+      Serial.print(fields[i].type == Float ? "Float" : "Integer");
+      Serial.print(", ");
+      Serial.print(fields[i].isSigned ? "Signed" : "Unsigned");
+      Serial.print(", ");
+      Serial.print(fields[i].bits);
+      Serial.print(" bits, Valor = ");
+      if (fields[i].type == Float) {
+        Serial.println(values[i].floatValue, 2);
+      } else {
+        Serial.println(values[i].intValue);
+      }
+    }
+  }
+};
 
 /*
 head |voltage | press| state | reserved
 |1011 |  13bit | 7bit | 2bit  | 000
 pressure has sign because we have substracted 1000 and could be negative
 */
-unsigned long set_message2(uint8_t head,unsigned long volt,int8_t pres,int8_t state)
-{
-  unsigned long val = 0;  
-  
-  uint16_t x1 = ((uint16_t)set_val(state,false) << 3 ) | (0x0) ;
-  uint32_t x2 = ((uint32_t)volt << 7) | ((uint16_t)set_val(pres,true) ); // Pressure relative to 1000
-
-  val =  ( ( (uint32_t)head << 28) |((uint32_t)x2 << 5)| ((uint32_t) (x1 & 0x1F)) ); 
-#ifdef SHOW_SERIAL
-  Serial .print("val=");  
-  Serial.print(val,BIN);
-  Serial .println("");
-#endif
-  
-  return val;
-}
-
-
-unsigned long set_message3(uint8_t head,int8_t t1,int8_t t2,int8_t h1,int8_t t2f)
-{
-  unsigned long val = 0;  
-  
-  uint16_t x1 = ((uint16_t)set_val(h1,false) << 7 ) | ((uint16_t)set_val(t2f,false));
-  uint16_t x2 = ((uint16_t)set_val(t1,true) << 7 ) | ((uint16_t)set_val(t2,true) );
-
-  // head of 4bit starts at 28, then 14 bit for temperature as two 6bit values both with signn (so 14bit), and then 7+7=14bits for humidity (0 to 100)
-  // That makes 32bit
-  val =  ( ( (uint32_t)head << 28) |((uint32_t)x2 << 14)| ((uint32_t) (x1 & 0x3FFF)) );  
-
-    // head  16        -1     2       127
-  //  1010 0010000 1000001 0000010 1111111
-  //  val=   10000 1000001 0000010 1111111
-#ifdef SHOW_SERIAL
-  Serial .print("val=");  
-  Serial.print(val,BIN);
-  Serial .println("");
-#endif
-
-  return val; 
-}
 
 void BME280_Sleep(uint8_t addr) 
 {
@@ -532,7 +640,7 @@ float interpolateTemperature(float R)
 
 // Use the ADC to measure voltage through the thermistor, from there get the resistance
 // and use the spline to interpolate temperature
-void readThermistorTemperature(SensorData &data)
+float readThermistorTemperature()
 {
   // data.temp = 22;
   // data.tempf = 22.5f;
@@ -607,11 +715,6 @@ void readThermistorTemperature(SensorData &data)
   if(T==NAN)
     T = -3;
 
-  data.temp = int(T);
-
-  float Tf = (T - (int)T);
-  data.tempf =  (int)(100*Tf);
-
 #ifdef SHOW_SERIAL
   Serial.print("AIN0: "); 
   Serial.print(adc0);
@@ -619,11 +722,11 @@ void readThermistorTemperature(SensorData &data)
   Serial.print(v , 5);
   Serial.print(" R="); 
   Serial.print(R);
-  Serial.print(" Tf="); 
-  Serial.print(data.tempf);
   Serial.print(" T="); 
   Serial.println(T , 2);
 #endif 
+
+  return T;
 }
 
 void setup() 
@@ -695,7 +798,6 @@ void loop()
   unsigned long voltage = 0;
 
   SensorData dat1 ={0,0,0};
-  SensorData dat2 ={0,0,0};
    
   //Serial.println(awakes);
   if(awakes < maxAwakes)
@@ -731,7 +833,12 @@ void loop()
   awakes = 0;
     
   delay(delayTime);
-  readThermistorTemperature(dat2);
+  
+  /////////////////////////////////////////////////
+  /// First message: temp,pressure,humidity 
+  /////////////////////////////////////////////////
+  
+  float T = readThermistorTemperature();
   delay(delayTime); 
 
   //delay(5000);
@@ -772,19 +879,39 @@ void loop()
   digitalWrite(BME_CS_BOARD, HIGH);
   pinMode(BME_CS_BOARD, INPUT);
   
-  //unsigned long data = set_message(0xA,dat1.temp,dat2.temp,dat1.humidity,dat2.humidity);
-  unsigned long data = set_message3(0xC,dat1.temp,dat2.temp,dat1.humidity,dat2.tempf);
+  // Send the temperature, pressure and humidity with first 0x02 message.
+  // Definición de campos
+  Field tempF(14, true, Float);     // With sign, −20.00 to +50.00 Temp with 2 decimal
+  Field presF(8, true, Integer);    // With sign, −128 to +128 (1000 is substracted to pressure so we go from 872mb to 1128mb)
+  Field humF(7, false, Integer);    // No sign, 0% to 100%
+
+  Field fields1[3] = { tempF, presF, humF };
+
+  // Pack into 32bit ulong
+  Value temp((float)T, tempF);
+  Value pres((int32_t)dat1.pressure, presF);
+  Value hum((int32_t)dat1.humidity, humF);
+
+  Value values1[3] = { temp, pres, hum };
+
+  // Pack it with msg id=3
+  uint32_t data1 = MessagePacker::pack(0x02, values1, 3);
+  
   pinMode(RF_POWER_PIN, OUTPUT);
   digitalWrite(RF_POWER_PIN, HIGH);
-  mySwitch.send(data, SIZE_BITS);
+  mySwitch.send(data1, SIZE_BITS);
   
   digitalWrite(RF_POWER_PIN, LOW);
 
 #ifdef SHOW_SERIAL 
   //show_bits_long(data);
   Serial.print("ValueSent: ");
-  Serial.println(data);
+  Serial.println(data1);
 #endif
+
+   /////////////////////////////////////////////////
+  /// Second message ; Voltage,PowerState, temp
+  /////////////////////////////////////////////////
 
   voltage = readVcc();
   unsigned long avgVoltage = add_voltage_sample(voltage);
@@ -808,7 +935,22 @@ void loop()
   }
 
 
-  unsigned long message = set_message2(0xD,avgVoltage,dat1.pressure,level);
+  //unsigned long message = set_message2(0xD,avgVoltage,dat1.pressure,level);
+  Field voltageF(13, false, Integer);  // No sign,0 to 8192mV. Plenty of bits.
+  Field stateF(2, false, Integer);     // No sign,0 to 4. 2 bit
+  Field tempSensorF(7, true, Integer);     // With sign, -20 to +50 no decimals=> -64/+64 => 6bit + 1bit for sign
+ 
+  Field fields2[3] = { voltageF, stateF, tempSensorF };
+
+  // Pack into 32bit ulong
+  Value volts((int32_t)avgVoltage, voltageF);
+  Value states((int32_t)level, stateF);
+  Value tempSensor((int32_t)dat1.temp, tempSensorF);
+
+  Value values2[3] = { volts, states, tempSensor };
+
+  // Pack it with id=4
+  uint32_t data2 = MessagePacker::pack(0x03, values2, 3);
 
   level = 0;
   
@@ -816,17 +958,15 @@ void loop()
   Serial.print("Vcc is ");
   Serial.print(avgVoltage>0?avgVoltage:voltage);
   Serial.print(" Sent:");
-  Serial.print(message);
+  Serial.print(data2);
   Serial.print(" mV state=");
   Serial.println(powerState);
   Serial.print("\n");
 #endif
     
-  //delay(delayTime);
-    
   // Send RF data
     
-  mySwitch.send(message, SIZE_BITS);
+  mySwitch.send(data2, SIZE_BITS);
     
     //digitalWrite(11, LOW);
     delay(delayTime); 

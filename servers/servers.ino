@@ -39,16 +39,6 @@ String gMyIP = "";
 
 #define SERVER_CASA
 
-#ifdef SERVER_CASA
-ThingerESP8266 thing("Boli", "DeviceIdCasa", "XYZ_Token");
-#define HEADER_PKG_1 0xC
-#define HEADER_PKG_2 0xD
-#elif
-ThingerESP8266 thing("Boli", "DeviceIdHuerto", "XYZ_Token");
-#define HEADER_PKG_1 0xA
-#define HEADER_PKG_2 0xB
-#endif
-
 const uint8_t RF433_RX_MARK_PIN = 2;
 const uint8_t RF433_RX_RECEIVE_PIN = 14;
 const uint8_t FLOWMETER_MARK_PIN = 13;
@@ -79,13 +69,43 @@ struct Wifi
   const char *pwd;  
   const char *url;
 };
-
+/*
 struct Wifi wifis[3] =
 {
   { "WIFI_!","XXXXXXXXX","http://192.168.1.45:7020/file.bin"},
   { "WIFI_2", "XXXXXXXXXX","http://192.168.1.45:7020/file.bin"},
   { "WIFI_3","123456789","http://192.168.43.107:7020/file.bin"}
 };
+
+#ifdef SERVER_CASA
+ThingerESP8266 thing("Boli", "DeviceIdCasa", "XYZ_Token");
+#define HEADER_PKG_1 0xC
+#define HEADER_PKG_2 0xD
+#elif
+ThingerESP8266 thing("Boli", "DeviceIdHuerto", "XYZ_Token");
+#define HEADER_PKG_1 0xA
+#define HEADER_PKG_2 0xB
+#endif
+*/
+
+struct Wifi wifis[4] =
+{
+   // For this,set geiger.server.com in /etc/hosts
+  { "MOVISTAR_06E4","9268FD9B9ECE5024885F","http://192.168.1.45:7020/file.bin"},
+  { "MOVISTAR-WIFI6-56B8", "A9ENRFbVYVYNYafTYddb","http://192.168.1.45:7020/file.bin"},
+  { "DIGIFIBRA-CUKh","hqP4RGghHN","http://192.168.1.45:7020/file.bin"},
+  { "GEIGER","123456789","http://192.168.43.107:7020/file.bin"}
+};
+
+#ifdef SERVER_CASA
+ThingerESP8266 thing("Boli", "DeviceIdCasa", "AVPH1TCsq2HbUmtH");
+#define HEADER_PKG_1 0xC
+#define HEADER_PKG_2 0xD
+#elif
+ThingerESP8266 thing("Boli", "DeviceIdHuerto", "KPc_@XnmOET_Xc9-");
+#define HEADER_PKG_1 0xA
+#define HEADER_PKG_2 0xB
+#endif
 
 bool connectWifi(struct Wifi wifi, int retries)
 {
@@ -138,7 +158,7 @@ void tryConnect()
   
   do
   {
-    for(int i=0; i < 3 ; i++)
+    for(int i=0; i < sizeof(wifis) ; i++)
     {       
       if(connectWifi(wifis[i],30))
       {
@@ -198,52 +218,6 @@ uint32_t lastRfValue = 0;
 uint32_t lastRf2Value = 0;
 unsigned long lastReception = 0;
 unsigned long lastReception2 = 0;
-
-// Just a try of blinking withoutd having to control timings in main loop
-class Blinker
-{
-  public:
-    explicit Blinker(unsigned long interval):
-    mInterval(interval)
-    {
-      //pinMode(FLOWMETER_MARK_PIN, OUTPUT);
-      //digitalWrite(FLOWMETER_MARK_PIN, LOW);
-    }
-
-    void loop(bool on)
-    {
-      if(on)
-      {
-        if(mInterval == 0)
-        {
-          digitalWrite(FLOWMETER_MARK_PIN, HIGH);
-          return;
-        }
-
-        unsigned long now = millis();
-        if(now - mLast > mInterval)
-        {
-          off = !off;
-          digitalWrite(FLOWMETER_MARK_PIN, off ? LOW : HIGH);
-          mLast = now;
-        }
-      }
-      else
-      {
-        digitalWrite(FLOWMETER_MARK_PIN, LOW);
-      } 
-    }
-
-    void changeInterval(unsigned long interval)
-    {   
-      mInterval = interval;      
-    }
-
-  protected:
-    unsigned long mInterval = 0UL;
-    unsigned long mLast = 0UL;
-    bool off = true;
-};
 
 // Configuration variables for flowmeter
 const int Qmax = 1;      // Liters per minute max to consider a leak
@@ -412,9 +386,6 @@ void setupIrrigation()
 // Static instance initialization;
 static FlowMeter instance;
 
-// Blinker (does not work)
-Blinker blinker(0);
-
 // Control irrigation function
 void loopIrrigation() 
 {
@@ -434,8 +405,7 @@ void loopIrrigation()
                 irrigation_start_time = now;
                 current_state = IRRIGATION_ACTIVE;
             }
-            
-            blinker.loop(false);
+
             break;
 
         case IRRIGATION_ACTIVE:
@@ -451,14 +421,10 @@ void loopIrrigation()
                 current_state = PIPE_FAILURE;
             }
             
-            blinker.loop(false);
             break;
 
         case PIPE_FAILURE:
             Serial.println("Leak detected. Valve closed.");
-
-            blinker.loop(true);
-            blinker.changeInterval(0);
             
             if (now - pipe_failure_time > Tcheck * 60000) 
             {
@@ -482,10 +448,7 @@ void loopIrrigation()
                 {
                     current_state = WAITING_FOR_IRRIGATION;                   
                 }
-            }
-          
-            blinker.changeInterval(500);
-            blinker.loop(true);       
+            }      
 
             break;
     }
@@ -589,6 +552,216 @@ String getState()
   return st;
 }
 
+/**
+ Discriminator for the C type of data a value stores 
+*/
+enum ValueType {
+  Integer,
+  Float
+};
+
+/**
+Descriptor of a given Field that says how many bits a Value has
+*/
+struct Field {
+  uint8_t bits;
+  bool isSigned;
+  ValueType type;
+
+  Field(uint8_t b, bool s, ValueType t = Integer)
+    : bits(b), isSigned(s), type(t) {}
+};
+
+/** 
+  A Value to be stored and transmitted/received by RF. 
+  - A Value can be stored as a int or a float, and type says which it is
+  - Field stores the bits ocuppied by this Value (0 to 32bit)
+   TODO(Paul) use a union for this, to optimize size  
+*/
+struct Value {
+  Field field;
+  ValueType type;
+  int32_t intValue;
+  float floatValue;
+
+  Value() : field(0, false, Integer), type(Integer), intValue(0), floatValue(0.0f) {}
+
+  Value(int32_t v, Field f) : field(f), type(Integer), intValue(v), floatValue(0.0f) {}
+  Value(float v, Field f) : field(f), type(Float), intValue(0), floatValue(v) {}
+};
+
+/**
+  A class to pack and unpack an array of Values, each one described by its descriptor
+  Floats are sent as integers and changed to float in receiving side by dividing by proper factor.(now 100)
+  
+  NOTE:This class is exactly the same, by copy&paste, in the RF sending and reception sides.
+
+  TODO(Paul): Make the number of decimals to be transmitted customizable.Now, restricted to two decimals.
+              Also the number of bits used for header (now 2)  
+*/
+class MessagePacker {
+public:
+  static int32_t roundFloat(float f) {
+    return (f >= 0) ? (int32_t)(f + 0.5f) : (int32_t)(f - 0.5f);
+  }
+
+  static void validateRuntime(const Value& v) {
+    int32_t raw = (v.type == Float)
+      ? roundFloat(v.floatValue * 100.0f)
+      : v.intValue;
+
+    int32_t max = v.field.isSigned ? (1 << (v.field.bits - 1)) - 1 : (1 << v.field.bits) - 1;
+    int32_t min = v.field.isSigned ? -(1 << (v.field.bits - 1)) : 0;
+    if (raw < min || raw > max) 
+    {    
+      Serial.print("⚠️ Value out of range: "); // Always print it
+      Serial.println(raw);      
+    }
+  }
+
+  static uint32_t encode(const Value& v) 
+  {
+    validateRuntime(v);
+
+    int32_t raw = (v.type == Float)
+      ? roundFloat(v.floatValue * 100.0f)
+      : v.intValue;
+
+    // Generate a mask with as many '1' as number of bits in each field (-1) because bit shihts start with zero 
+    uint32_t mask = (1UL << v.field.bits) - 1;
+
+    if (v.field.isSigned) 
+    {
+      // Create mask with 1 in sign position
+      uint32_t signBit = (raw < 0) ? (1UL << (v.field.bits - 1)) : 0; 
+      // example for 5bit field: Generate 1UL << 5 = 0b00100000. Then, 0b00100000 - 1 = 0b00011111 is the value without sign 
+      uint32_t magnitude = (uint32_t)(abs(raw)) & ((1UL << (v.field.bits - 1)) - 1); 
+      return signBit | magnitude;
+    } 
+    else 
+    {
+      return (uint32_t)(raw) & mask; //Get only the bits in the field for this value
+    }
+  }
+
+  static int32_t decode(uint32_t packed, const Field& f) 
+  {
+    uint32_t mask = (1UL << f.bits) - 1; // Mask to isolate value magnitude
+    packed &= mask;
+
+    if (f.isSigned) 
+    {
+      // Generate mask to have a '1' exactly at sign bit
+      uint32_t signBit = 1UL << (f.bits - 1); 
+      bool isNegative = packed & signBit;
+      
+      // Sign bit minus 1 set '1s' in all bits before sign bit, which is what we need to get the value magnitude 
+      int32_t magnitude = packed & (signBit - 1);
+      return isNegative ? -magnitude : magnitude; // Notice we return a signed type to include sigh
+    } 
+    else 
+    {
+      return (int32_t)(packed);
+    }
+  }
+
+  static float decodeFloat(int32_t raw) 
+  {
+    return ((float)raw) / 100.0f;
+  }
+
+  static uint32_t pack(uint8_t header, Value values[], uint8_t count) 
+  {
+    uint8_t totalBits = 0;
+    for (uint8_t i = 0; i < count; ++i) 
+    {
+      totalBits += values[i].field.bits;
+    }
+
+    if (totalBits > 30) // 28 for 4bit header 
+    {
+      Serial.print("Error: total bits = "); // Always print it
+      Serial.println(totalBits);
+
+      return 0U;
+    }
+
+    // Move header bits at the beginning of the 32bit value
+    uint32_t result = ((uint32_t)(header & 0x03)) << 30;
+
+    // uint32_t result = ((uint32_t)(header & 0x0F)) << 28; For 4bit header
+
+    uint8_t offset = 0;
+
+  // For each field, encode and move its number of field. then move ahead its size
+    for (uint8_t i = 0; i < count; ++i) 
+    {
+      result |= encode(values[i]) << offset;
+      offset += values[i].field.bits;
+    }
+
+    return result;
+  }
+
+  static uint8_t unpack(uint32_t packed, Field fields[], Value values[], uint8_t count) 
+  {
+    uint8_t offset = 0;
+
+    uint8_t header = (packed >> 30) & 0x03;
+
+    // First, get header and return it
+    Serial.print("Header = ");
+    Serial.println(header);
+
+    // Now go for each bit field
+    for (uint8_t i = 0; i < count; ++i) 
+    {
+      uint32_t mask = (1UL << fields[i].bits) - 1;
+      uint32_t raw = (packed >> offset) & mask;
+      int32_t decoded = decode(raw, fields[i]);
+
+      if (fields[i].type == Float) 
+      {
+        values[i] = Value(decodeFloat(decoded), fields[i]);
+      } 
+      else 
+      {
+        values[i] = Value(decoded, fields[i]);
+      }
+
+      offset += fields[i].bits;
+    }
+
+    return header;
+  }
+
+  static void inspectMessage(uint32_t packed, Field fields[], uint8_t count) {  
+    Value values[4];
+    unpack(packed, fields, values, count);
+
+    Serial.println("\n🔍 Message:");
+    Serial.print("Header = ");
+    Serial.println((packed >> 30) & 0x03);
+
+    for (uint8_t i = 0; i < count; ++i) {
+      Serial.print("Campo ");
+      Serial.print(i);
+      Serial.print(": ");
+      Serial.print(fields[i].type == Float ? "Float" : "Integer");
+      Serial.print(", ");
+      Serial.print(fields[i].isSigned ? "Signed" : "Unsigned");
+      Serial.print(", ");
+      Serial.print(fields[i].bits);
+      Serial.print(" bits, Valor = ");
+      if (fields[i].type == Float) {
+        Serial.println(values[i].floatValue, 2);
+      } else {
+        Serial.println(values[i].intValue);
+      }
+    }   
+  }
+};
+
 void setup()
 {
   Serial.begin(SERIAL_SPEED);
@@ -638,6 +811,13 @@ void setup()
 
     Serial.print('\n');
     
+    if(tempPrecise != -1)
+    {
+        out["Tp"] = tempPrecise;
+    }
+    else
+      out["Tp"] = 0;
+
     if(tempSonda != -1)
     {
       out["T"] = tempSonda;
@@ -668,12 +848,7 @@ void setup()
 
     if(humCable != -1)
     {
-      out["Hc"] = humCable; // From sensor, we are sending decimal digits in this field
-      if(tempCable != -1)
-      {
-        tempPrecise = tempCable + ((float)humCable/100); // TODO
-        out["Tp"] = tempPrecise;
-      }
+      out["Hc"] = humCable; 
     }
     else
      out["Hc"] = 0;
@@ -736,63 +911,6 @@ void show(const char*id,float value)
   Serial.print('\n');
 }
 
-////////////////////////////////////////
-// Some methods to unpack 32bit RF data
-////////////////////////////////////////
-
-unsigned long field_mask(int field)
-{
-   unsigned long mask = ( 0x7F << field*7);   
-   return mask;
-}
- 
-unsigned long get_sign(unsigned long v,int field,bool sig)
-{
-    unsigned long mask = field_mask(field);
-    unsigned long smask = 0;
-
-    if(sig)
-    {
-      smask = (0b1000000 << field*7);
-    
-      int sign = (v & mask) & smask;
-    
-      return sign>0?-1:1;
-    }
-    else
-      return 1;
-}
-
-unsigned long get_val(unsigned long v,int field,bool sig)
-{
-    unsigned long vmask = 0;
-    int sign = 1;
-    
-    if(sig)
-    {
-      // we must take into account sign bit
-      sign = get_sign(v,field,sig);
-      vmask = (0b0111111 << field*7);
-    }
-    else
-    {
-       vmask = (0b1111111 << field*7);
-    }
-
-    long x = (v & vmask) >> field*7;
-    
-    return sign*x;
-}
-
-bool check_header(uint8_t head,unsigned long v)
-{
-    unsigned long hmask = (0b1111 << 4*7);
-
-    uint8_t x = ((v & hmask) >> 4*7 ) & 0xFF;
-    
-    return (x == head);
-}
-
 void flashLed()
 {
   // Onboard led 4
@@ -825,61 +943,79 @@ void loop()
     Serial.print("Received ");
     Serial.println(rfValue);
  
-    if(check_header(HEADER_PKG_1,rfValue))
+    /////////////////////////////////////////////////
+    /// First message: temp,pressure,humidity 
+    /////////////////////////////////////////////////
+     
+    Field tempF(14, true, Float);     // −20.00 to +50.00 with 2 decimal
+    Field presF(8, true, Integer);    // −128 to +128
+    Field humF(7, false, Integer);    // 0 to 100
+
+    Field fields1[3] = { tempF, presF, humF };
+
+    //MessagePacker::inspectMessage(rfValue, fields1, 3);
+  
+    Value values1[4];
+    uint8_t header = MessagePacker::unpack(rfValue, fields1, values1, 3);
+    if(header == 0x02)
     {
-      lastRfValue = rfValue;
+      tempPrecise = values1[0].floatValue;
+      presSonda = 1000 + values1[1].intValue;
+      humCable = values1[2].intValue;
+    
+      tempCable = MessagePacker::roundFloat(tempPrecise);
       
-      Serial.println("HEADER 1 ");
-      humCable = get_val(rfValue,0,false);
-      humSonda = get_val(rfValue,1,false);
-      tempCable = get_val(rfValue,2,true);
-      tempSonda = get_val(rfValue,3,true);
- 
-      Serial.print("humCable: ");
-      Serial.println(humCable);
-      Serial.print("humSonda: ");
-      Serial.println(humSonda);
-      Serial.print("tempSonda: ");
+      lastReception = now;
+
+      flashLed();
+
+      Serial.print("T="); 
+      Serial.print(tempPrecise,2); 
+      Serial.print(" P=");
+      Serial.print(presSonda);
+      Serial.print(" H=");
+      Serial.println(humCable); 
+    }
+    else if(header == 0x03)
+    { 
+      Field voltageF(13, false, Integer);  // No sign,0 to 8192mV. Plenty of bits.
+      Field stateF(2, false, Integer);     // No sign,0 to 4. 2 bit
+      Field tempSensorF(7, true, Integer);      // All zero
+
+      Field fields2[3] = { voltageF, stateF,  tempSensorF};
+
+      // unpack
+      Value values2[4];
+      uint8_t header = MessagePacker::unpack(rfValue, fields2, values2, 3);
+      
+        voltage = values2[0].intValue;
+        powerState = values2[1].intValue;
+        tempSonda = values2[2].intValue;
+
+        // Legacy in message2
+        presSonda = 0;
+
+        lastReception = now;
+
+        flashLed();
+
+      Serial.print("V="); 
+      Serial.print(voltage); 
+      Serial.print(" S=");
+      Serial.print(powerState);
+      Serial.print(" T=");
       Serial.println(tempSonda);
-      Serial.print("tempCable: ");
-      Serial.println(tempCable);
-      
-      lastReception = now;
-
-      flashLed();
     }
-    else if(check_header(HEADER_PKG_2,rfValue))
+    else
     {
-       lastRfValue = rfValue;
+      // Nothing interesting for us received.
+      lastRf = (now - lastReception)/1000;
+      lastRf2 = (now - lastReception2)/1000; // From home
+    
+      return;
+    }    
 
-       Serial.println("HEADER 2 ");
-      //        voltage  pressure   state   unused
-      // 1011 |  13bit  | 7bit    | 2bit  | 000
-      // Pressure is relative to 1000
-
-      // Take first bits 0b00011000 = 0x18 and shift to remove unused
-      uint8_t state = (rfValue & (0x18)) >> 3;
-      powerState = state;
-      
-      // Use uint16_t to have enough space to store the bits
-      uint16_t pres = (rfValue & (uint16_t)(0b111111100000))>>5 ;
-      // Once we have the 7bit,reuse the function get_val() to extract sign and value
-      presSonda = 1000+get_val(pres,0,true);
-      
-      // Remove header and 12bits
-      voltage = (rfValue & 0x0FFFF000) >> 12;
-      
-      Serial.print("state: ");
-      Serial.println(powerState);
-      Serial.print("Pressure: ");
-      Serial.println(presSonda);
-      Serial.print("Voltage: ");
-      Serial.println(voltage);
-      
-      lastReception = now;
-
-      flashLed();
-    }
+    /*
     else if(check_header(0x9,rfValue))
     {  
       lastRf2Value = rfValue;
@@ -946,7 +1082,7 @@ void loop()
       
       return;
     }
-    
+    */
     Serial.println('\n');  
 
     // Onboard led 4
