@@ -69,7 +69,7 @@ struct Wifi
   const char *pwd;  
   const char *url;
 };
-/*
+
 struct Wifi wifis[3] =
 {
   { "WIFI_!","XXXXXXXXX","http://192.168.1.45:7020/file.bin"},
@@ -83,26 +83,6 @@ ThingerESP8266 thing("Boli", "DeviceIdCasa", "XYZ_Token");
 #define HEADER_PKG_2 0xD
 #elif
 ThingerESP8266 thing("Boli", "DeviceIdHuerto", "XYZ_Token");
-#define HEADER_PKG_1 0xA
-#define HEADER_PKG_2 0xB
-#endif
-*/
-
-struct Wifi wifis[4] =
-{
-   // For this,set geiger.server.com in /etc/hosts
-  { "MOVISTAR_06E4","9268FD9B9ECE5024885F","http://192.168.1.45:7020/file.bin"},
-  { "MOVISTAR-WIFI6-56B8", "A9ENRFbVYVYNYafTYddb","http://192.168.1.45:7020/file.bin"},
-  { "DIGIFIBRA-CUKh","hqP4RGghHN","http://192.168.1.45:7020/file.bin"},
-  { "GEIGER","123456789","http://192.168.43.107:7020/file.bin"}
-};
-
-#ifdef SERVER_CASA
-ThingerESP8266 thing("Boli", "DeviceIdCasa", "AVPH1TCsq2HbUmtH");
-#define HEADER_PKG_1 0xC
-#define HEADER_PKG_2 0xD
-#elif
-ThingerESP8266 thing("Boli", "DeviceIdHuerto", "KPc_@XnmOET_Xc9-");
 #define HEADER_PKG_1 0xA
 #define HEADER_PKG_2 0xB
 #endif
