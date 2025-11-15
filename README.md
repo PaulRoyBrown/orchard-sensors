@@ -15,11 +15,11 @@ We explain now a little what each part does in the project.
 The pair of sensors controller by the Arduino Mini Pro can be:
 
 - A couple of Bosch **BME-280**
-- A BME-280 and a **thermistor** (calibrated thermistor for better accuracy) with an **ADS1115** ADC chip to measure thermistor voltage.
+- A BME-280 and a **thermistor** (calibrated thermistor for better accuracy) with an **ADS1115** ADC [chip](https://www.amazon.es/QIQIAZI-convertidor-anal%C3%B3gico-digital-compatible-Convertidor/dp/B0D91XW41N/ref=sr_1_4?crid=23K098IDCPBDI&dib=eyJ2IjoiMSJ9.CD3IPHqh3j2YZi9xFvIQLfXL24Gu5q4CzNX7T0XcbLk_eIsCMCb666E8AAK4eoKFDbf4eObtnQzQ_3W79curW-5Sc6vqFJ7mbjuqtJqeULXTpjvFHAsmgzwZCGaJBI5KywhcdrEev69QGaiAlHZ-XFG6DhqyruBX1Xriwym-FLYUQY0Q1mHM-fgPdbCuMNeyzUAiYMcAHPWW_Ne6_g67RY4Z3yvuZlvFUjHxELJkE32AwEUtF5M83ojd1eomo7pB21wDqDe2pJ6R_kNs23T37_IITiTPDjtsIbccZvShaB4.ThrwVFy_g6G3Aib77xfiODEZNdqOjpE4JAC78npWJAc&dib_tag=se&keywords=ads1115&qid=1763191131&sprefix=ads1115%2Caps%2C144&sr=8-4) to measure thermistor voltage.
  
 With two sensors, we can measure air and soil temperature. I'm now measuring soil temperature at 60cm below ground. (Why?...Because of curiosity....What's the phase delay between a peak in temperature at ground level and 60cm below it?.Will average temperature at that depth slowly increase due to global warming?...not in the three years I'm been watching...)
 
-Sensors board is powered by a solar panel (2.5W 5V/500mAh) that feeds a LiPo battery, and loads during day and discharges during night. This is controlled by a **MCP78371** chip.
+Sensors board is powered by a solar panel (2.5W 5V/500mAh) that feeds a LiPo battery, and loads during day and discharges during night. This is controlled by a **MCP78371** [chip](https://es.aliexpress.com/item/1005009299052076.html?src=bing&aff_short_key=UneMJZVf&aff_platform=true&isdl=y&albch=shopping&acnt=135095331&isdl=y&albcp=555334327&albag=1298524432547219&slnk=&trgt=pla-2332957516082129&plac=&crea=81157836054700&netw=o&device=c&mtctp=e&utm_source=Bing&utm_medium=shopping&utm_campaign=PA_Bing_ES_Pmax_Electronics_maxvalue_20250304_newstore_AESupply&utm_content=ES-ALL&utm_term=MCP78371&msclkid=f31c1f131d531468479c760b3582fdac&gatewayAdapt=glo2esp).
 Being powered by battery, is important to monitor battery voltage, so sensors board in the orchard has a power saving mechanism based on its own voltage monitoring. If voltage drops below some levels, it will transmit data less often to save battery charge.  
 
 Battery capacity is 150mA or 350mA and sensor data is sent via RF in 433Mhz band. During day, measurements are sent each minute. During night, in winter, voltage monitoring sensor board enters in power save mode sending messages each 3 min. 
