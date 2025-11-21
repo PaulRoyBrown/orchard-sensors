@@ -48,8 +48,15 @@ bool boardOk = false;
 ///////////////////////////
 
 #define THERMISTOR_POWER_PIN    8
-#define THERMISTOR_CURRENT_UA   30.89 // Constant current µA. Important to be well measured!!
+#define THERMISTOR_CURRENT_UA   103.02 //30.89 // Constant current µA. Important to be well measured!!
 #define THERMISTOR_CURRENT_TIME 100
+
+// Calibrated table of temp/resistance thermistor curve
+// Values between -5 and 45 temperature degrees
+const int N = 11;
+const float temps[N] = {-5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45};
+const float resist[N] = {12300, 9423, 7282, 5672, 4450, 3515, 2796, 2238, 1802, 1459, 1188};
+
 
 // We measure the thermistor voltage with this ADC chip
 Adafruit_ADS1115 ads; //Global object
@@ -57,7 +64,15 @@ Adafruit_ADS1115 ads; //Global object
 bool bData = false;
 
 const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convert to amps
-float multiplier = 0.0078125F; // Scale factor ADC
+
+// The max generated voltage drop in thermistor depends on the current choosen.
+ //For 100uA max voltage could be according to resist[] array 12300 * 100uA =  1.25V 
+// so according to Table 7-1. Full-Scale Range and Corresponding LSB Size in 
+// idatasheet we must choose max range FSR=2048 => multiplier = 0.0625F 
+// For 30uA generated with LM334 we are ok in first step. (0.0078125F)
+
+// Scale factor ADC
+float multiplier =  0.0625F ; //0.0078125F; 
 
 // Storage type for sensor data
 typedef struct _SensorData
@@ -575,12 +590,6 @@ bool setupBoard(Adafruit_BME280 *board, bool bPressure, uint8_t addr)
 // Spline adjustemt of thermistor curve
 ////////////////////////////////////////
 
-// Calibrated table of temp/resistance thermistor curve
-// Values between -5 and 45 temperature degrees
-const int N = 11;
-const float temps[N] = {-5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45};
-const float resist[N] = {12300, 9423, 7282, 5672, 4450, 3515, 2796, 2238, 1802, 1459, 1188};
-
 float a[N], b[N], c[N], d[N], h[N - 1], alpha[N - 1], l[N], mu[N], z[N];
 
 // IA generated for best fit 10 points to the curve
@@ -710,7 +719,7 @@ float readThermistorTemperature()
 
   v = float(adc0) * multiplier; 
   R = (v / 1000) / CURRENT_A;
-  T =interpolateTemperature( R );
+  T = interpolateTemperature( R );
 
   if(T==NAN)
     T = -3;
