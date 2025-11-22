@@ -61,7 +61,7 @@ const float resist[N] = {12300, 9423, 7282, 5672, 4450, 3515, 2796, 2238, 1802, 
 // We measure the thermistor voltage with this ADC chip
 Adafruit_ADS1115 ads; //Global object
 
-bool bData = false;
+bool bData = false; // Changed to true in ALERT interrupt to say there is data available 
 
 const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convert to amps
 
@@ -73,6 +73,9 @@ const float CURRENT_A = THERMISTOR_CURRENT_UA / 1e6; // Convert to amps
 
 // Scale factor ADC
 float multiplier =  0.0625F ; //0.0078125F; 
+
+// GAIN must be according to the FSR. Taken from the header Adafruit_ADS1X15.h
+adsGain_t THERMISTOR_ADC_GAIN = GAIN_TWO; //GAIN_SIXTEEN
 
 // Storage type for sensor data
 typedef struct _SensorData
@@ -112,6 +115,14 @@ uint8_t powerState = POWER_STATE_HIGH ; // ULTRALOW,LOW,MEDIUM,HIGH Actual power
 uint8_t powerSaveLevel = 0;
 bool bReboot = false;
 
+// Interrupt coming from ALERT ADS1115 pin
+void adcISR()
+{
+  bData = true;
+  
+  //Serial.println("INTR");
+}
+
 SensorData getValues(Adafruit_BME280 &);
 
 unsigned long delayTime = 100;
@@ -127,13 +138,6 @@ ISR(WDT_vect)
   // Count times we wakeup
   awakes++;
   reset++;
-}
-
-void adcISR()
-{
-  bData = true;
-  
-  //Serial.println("INTR");
 }
 
 ///////////////////////////////////////
@@ -684,8 +688,8 @@ float readThermistorTemperature()
 
   delay(THERMISTOR_CURRENT_TIME);
   
-  //adc0 = myAdc.readADC_Differential_0_1();
-
+  adc0 = myAdc.readADC_Differential_0_1();
+/*
   myAdc.startADCReading(ADS1X15_REG_CONFIG_MUX_DIFF_0_1, false); //This jumps to 440uA
 
   unsigned long n = 0;
@@ -706,8 +710,8 @@ float readThermistorTemperature()
     adc0 =  myAdc.getLastConversionResults();
   }
   
-  digitalWrite(THERMISTOR_POWER_PIN, LOW);
-  pinMode(THERMISTOR_POWER_PIN, INPUT);
+  //digitalWrite(THERMISTOR_POWER_PIN, LOW);
+  //pinMode(THERMISTOR_POWER_PIN, INPUT);
 
 #ifdef ADC_POWERED_BY_PIN  
   myAdc.conversionComplete();
@@ -716,7 +720,7 @@ float readThermistorTemperature()
   digitalWrite(5, LOW);
   pinMode(5, INPUT);
 #endif
-
+*/
   v = float(adc0) * multiplier; 
   R = (v / 1000) / CURRENT_A;
   T = interpolateTemperature( R );
@@ -758,7 +762,7 @@ void setup()
     digitalWrite(5, HIGH);
   
     delay(100);
-    ads.setGain(GAIN_SIXTEEN);    //+/- 0.256V  1 bit = 0.0078125mV 
+    ads.setGain(THERMISTOR_ADC_GAIN);    //+/- 0.256V  1 bit = 0.0078125mV 
     ads.begin();
 
     Serial.println("ADS1115 ok");
