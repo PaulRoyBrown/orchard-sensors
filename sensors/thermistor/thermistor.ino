@@ -100,10 +100,17 @@ volatile uint8_t maxAwakes = MAX_AWAKES; // This is increased if low voltage to 
 volatile uint8_t reset = 0; 
 
 // Battery limits to start saving power
+/*
 #define VOLTAGE_HIGH    4099
 #define VOLTAGE_MEDIUM  4061//4050//4010
 #define VOLTAGE_LOW     4050 //4000//3959
 #define VOLTAGE_ULTRALOW  3995 // 3770//3950
+*/
+
+#define VOLTAGE_HIGH    4540
+#define VOLTAGE_MEDIUM  4520//4050//4010
+#define VOLTAGE_LOW     4500 //4000//3959
+#define VOLTAGE_ULTRALOW  4 // 3770//3950
 
 // States that match above battery limits
 #define POWER_STATE_HIGH    1  // 1*8*MAX_AWAKES sec -> aprox 8*8 = 1 min
@@ -202,7 +209,7 @@ unsigned long add_voltage_sample(unsigned long sample)
 // With this method, comsumption go from 90uA to 245uA !
 long readVcc() 
 {
-  return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
+  //return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
  
   uint8_t copy =   (*(volatile uint8_t *)(0x7C));
   // Read 1.1V reference against AVcc
@@ -321,10 +328,10 @@ void setup_wdt()
   WDTCSR |= (1 << WDCE) | (1 << WDE);
 
   // Configure: 2 sec + interrupt, not reset
-  WDTCSR = (1 << WDIE) | (1 << WDP0) | (1 << WDP1) | (1 << WDP2);
+  //WDTCSR = (1 << WDIE) | (1 << WDP0) | (1 << WDP1) | (1 << WDP2);
 
    // Configure: 8 sec + interrupt, not reset
-  //WDTCSR = (1 << WDIE) | 1<<WDP0 | 1<<WDP3; 
+  WDTCSR = (1 << WDIE) | 1<<WDP0 | 1<<WDP3; 
   
   //MCUCR = bit (BODS) | bit (BODSE);  // turn on brown-out enable select
   //MCUCR = bit (BODS);        // this must be done within 4 clock cycles of above
@@ -709,9 +716,9 @@ float readThermistorTemperature()
     // Read the conversion results
     adc0 =  myAdc.getLastConversionResults();
   }
-  
-  //digitalWrite(THERMISTOR_POWER_PIN, LOW);
-  //pinMode(THERMISTOR_POWER_PIN, INPUT);
+  */
+  digitalWrite(THERMISTOR_POWER_PIN, LOW);
+  pinMode(THERMISTOR_POWER_PIN, INPUT);
 
 #ifdef ADC_POWERED_BY_PIN  
   myAdc.conversionComplete();
@@ -720,7 +727,7 @@ float readThermistorTemperature()
   digitalWrite(5, LOW);
   pinMode(5, INPUT);
 #endif
-*/
+
   v = float(adc0) * multiplier; 
   R = (v / 1000) / CURRENT_A;
   T = interpolateTemperature( R );
