@@ -96,12 +96,13 @@ SensorData;
 #define MAX_AWAKES 8
 #define MAX_AWAKES_RESET 1000 // Reset each 8000secs
 
-uint8_t sleepDuration = 2;
+uint8_t sleepDuration = 8;
 volatile uint8_t awakes = MAX_AWAKES; // 8, so first time in loop,we send information to make checks easier (do not wait 60 secs) after power on
 volatile uint8_t maxAwakes = MAX_AWAKES; // This is increased if low voltage to save batery
 volatile uint8_t reset = 0; 
 
 // Battery limits to start saving power
+// This limits are very dependent on your HW
 /*
 #define VOLTAGE_HIGH    4099
 #define VOLTAGE_MEDIUM  4061//4050//4010
@@ -109,10 +110,10 @@ volatile uint8_t reset = 0;
 #define VOLTAGE_ULTRALOW  3995 // 3770//3950
 */
 
-#define VOLTAGE_HIGH    4540
-#define VOLTAGE_MEDIUM  4520//4050//4010
+#define VOLTAGE_HIGH    4510
+#define VOLTAGE_MEDIUM  4490//4050//4010
 #define VOLTAGE_LOW     4500 //4000//3959
-#define VOLTAGE_ULTRALOW  4 // 3770//3950
+#define VOLTAGE_ULTRALOW  4490 // 3770//3950
 
 // States that match above battery limits
 #define POWER_STATE_HIGH    1  // 1*8*MAX_AWAKES sec -> aprox 8*8 = 1 min
@@ -211,7 +212,7 @@ unsigned long add_voltage_sample(unsigned long sample)
 // With this method, comsumption go from 90uA to 245uA !
 long readVcc() 
 {
-  return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
+  //return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
  
   uint8_t copy =   (*(volatile uint8_t *)(0x7C));
   // Read 1.1V reference against AVcc
