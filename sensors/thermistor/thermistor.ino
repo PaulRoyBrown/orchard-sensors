@@ -25,7 +25,7 @@
 
 #define RF_POWER_PIN 9
 #define RF_TX_PIN 4
-#define SIZE_BITS 32 
+#define MSG_SIZE_BITS 32  // 32bit each message to use uint32_t
 
 RCSwitch mySwitch = RCSwitch();
 
@@ -92,9 +92,11 @@ SensorData;
 //////////////////////////
 // WDT entry count. We wakeup each 2 o 8 secs (as configured in setup_wdt() just to check battery 
 // voltage and each MAX_AWAKES we do measurements
+  
 #define MAX_AWAKES 8
 #define MAX_AWAKES_RESET 1000 // Reset each 8000secs
 
+uint8_t sleepDuration = 2;
 volatile uint8_t awakes = MAX_AWAKES; // 8, so first time in loop,we send information to make checks easier (do not wait 60 secs) after power on
 volatile uint8_t maxAwakes = MAX_AWAKES; // This is increased if low voltage to save batery
 volatile uint8_t reset = 0; 
@@ -209,7 +211,7 @@ unsigned long add_voltage_sample(unsigned long sample)
 // With this method, comsumption go from 90uA to 245uA !
 long readVcc() 
 {
-  //return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
+  return (VOLTAGE_HIGH + 1); // Return this to stay in normal state
  
   uint8_t copy =   (*(volatile uint8_t *)(0x7C));
   // Read 1.1V reference against AVcc
@@ -328,11 +330,16 @@ void setup_wdt()
   WDTCSR |= (1 << WDCE) | (1 << WDE);
 
   // Configure: 2 sec + interrupt, not reset
-  //WDTCSR = (1 << WDIE) | (1 << WDP0) | (1 << WDP1) | (1 << WDP2);
+  if(sleepDuration == 2)
+  {
+    WDTCSR = (1 << WDIE) | (1 << WDP0) | (1 << WDP1) | (1 << WDP2);
+  }
+  else
+  {
+     // Configure: 8 sec + interrupt, not reset
+    WDTCSR = (1 << WDIE) | 1<<WDP0 | 1<<WDP3; 
+  }
 
-   // Configure: 8 sec + interrupt, not reset
-  WDTCSR = (1 << WDIE) | 1<<WDP0 | 1<<WDP3; 
-  
   //MCUCR = bit (BODS) | bit (BODSE);  // turn on brown-out enable select
   //MCUCR = bit (BODS);        // this must be done within 4 clock cycles of above
 
@@ -465,7 +472,7 @@ public:
       totalBits += values[i].field.bits;
     }
 
-    if (totalBits > 30) // 28 for 4bit header 
+    if (totalBits > 28) //30) // 28 for 4bit header 
     {
       Serial.print("Error: total bits = "); // Always print it
       Serial.println(totalBits);
@@ -474,9 +481,8 @@ public:
     }
 
     // Move header bits at the beginning of the 32bit value
-    uint32_t result = ((uint32_t)(header & 0x03)) << 30;
-
-    // uint32_t result = ((uint32_t)(header & 0x0F)) << 28; For 4bit header
+    //uint32_t result = ((uint32_t)(header & 0x03)) << 30; // For 2bit header
+    uint32_t result = ((uint32_t)(header & 0x0F)) << 28; //For 4bit header
 
     uint8_t offset = 0;
 
@@ -490,10 +496,18 @@ public:
     return result;
   }
 
-  static void unpack(uint32_t packed, Field fields[], Value values[], uint8_t count) 
+  static uint8_t unpack(uint32_t packed, Field fields[], Value values[], uint8_t count) 
   {
     uint8_t offset = 0;
 
+    //uint8_t header = (packed >> 30) & 0x03;
+    uint8_t header = (packed >> 28) & 0x0F;
+
+    // First, get header and return it
+    Serial.print("Header = ");
+    Serial.println(header);
+
+    // Now go for each bit field
     for (uint8_t i = 0; i < count; ++i) 
     {
       uint32_t mask = (1UL << fields[i].bits) - 1;
@@ -511,17 +525,19 @@ public:
 
       offset += fields[i].bits;
     }
+
+    return header;
   }
 
-  static void inspectMessage(uint32_t packed, Field fields[], uint8_t count) 
-  {
-  
+  static void inspectMessage(uint32_t packed, Field fields[], uint8_t count) {  
     Value values[4];
     unpack(packed, fields, values, count);
 
     Serial.println("\n🔍 Message:");
     Serial.print("Header = ");
-    Serial.println((packed >> 30) & 0x03);
+
+    //Serial.println((packed >> 30) & 0x03);
+    Serial.println((packed >> 28) & 0x0F);
 
     for (uint8_t i = 0; i < count; ++i) {
       Serial.print("Campo ");
@@ -538,7 +554,7 @@ public:
       } else {
         Serial.println(values[i].intValue);
       }
-    }
+    }   
   }
 };
 
@@ -790,7 +806,7 @@ void setup()
   Serial.println("Initializing RF_TX"); 
 
   mySwitch.enableTransmit(RF_TX_PIN);
-  mySwitch.setRepeatTransmit(20);
+  mySwitch.setRepeatTransmit(10);
      
 
 #ifndef NO_SENSOR    
@@ -898,40 +914,6 @@ void loop()
 
   digitalWrite(BME_CS_BOARD, HIGH);
   pinMode(BME_CS_BOARD, INPUT);
-  
-  // Send the temperature, pressure and humidity with first 0x02 message.
-  // Definición de campos
-  Field tempF(14, true, Float);     // With sign, −20.00 to +50.00 Temp with 2 decimal
-  Field presF(8, true, Integer);    // With sign, −128 to +128 (1000 is substracted to pressure so we go from 872mb to 1128mb)
-  Field humF(7, false, Integer);    // No sign, 0% to 100%
-
-  Field fields1[3] = { tempF, presF, humF };
-
-  // Pack into 32bit ulong
-  Value temp((float)T, tempF);
-  Value pres((int32_t)dat1.pressure, presF);
-  Value hum((int32_t)dat1.humidity, humF);
-
-  Value values1[3] = { temp, pres, hum };
-
-  // Pack it with msg id=3
-  uint32_t data1 = MessagePacker::pack(0x02, values1, 3);
-  
-  pinMode(RF_POWER_PIN, OUTPUT);
-  digitalWrite(RF_POWER_PIN, HIGH);
-  mySwitch.send(data1, SIZE_BITS);
-  
-  digitalWrite(RF_POWER_PIN, LOW);
-
-#ifdef SHOW_SERIAL 
-  //show_bits_long(data);
-  Serial.print("ValueSent: ");
-  Serial.println(data1);
-#endif
-
-   /////////////////////////////////////////////////
-  /// Second message ; Voltage,PowerState, temp
-  /////////////////////////////////////////////////
 
   voltage = readVcc();
   unsigned long avgVoltage = add_voltage_sample(voltage);
@@ -947,6 +929,52 @@ void loop()
     }
 
   uint8_t level = powerSaveLevel;
+
+/*  
+  // Send the temperature, pressure and humidity with first 0x02 message.
+  // Definición de campos
+  Field tempF(14, true, Float);     // With sign, −20.00 to +50.00 Temp with 2 decimal
+  Field presF(8, true, Integer);    // With sign, −128 to +128 (1000 is substracted to pressure so we go from 872mb to 1128mb)
+  Field humF(7, false, Integer);    // No sign, 0% to 100%
+
+  Field fields1[3] = { tempF, presF, humF };
+
+  // Pack into 32bit ulong
+  Value temp((float)T, tempF);
+  Value pres((int32_t)dat1.pressure, presF);
+  Value hum((int32_t)dat1.humidity, humF);
+
+  Value values1[3] = { temp, pres, hum };
+*/
+  Field tempF(14, true, Float);     // −20.00 to +50.00 with 2 decimal
+  Field tempSensorF(7, true, Integer);     // With sign, -20 to +50 no decimals=> -64/+64 => 6bit + 1bit for sign
+  Field stateF(2, false, Integer);     // No sign,0 to 4. 2 bit
+
+  Value temp((float)T, tempF);
+  Value tempSensor((int32_t)dat1.temp, tempSensorF);
+  Value states((int32_t)level, stateF);
+
+  Value values1[3] = { temp, tempSensor, states };
+
+  // Pack it with msg id=3
+  uint32_t data1 = MessagePacker::pack(0x0F, values1, 3);
+  
+  pinMode(RF_POWER_PIN, OUTPUT);
+  digitalWrite(RF_POWER_PIN, HIGH);
+  mySwitch.send(data1, MSG_SIZE_BITS);
+  
+
+#ifdef SHOW_SERIAL 
+  //show_bits_long(data);
+  Serial.print("ValueSent: ");
+  Serial.println(data1);
+#endif
+
+   /////////////////////////////////////////////////
+  /// Second message ; Voltage,PowerState, temp
+  /////////////////////////////////////////////////
+
+
   // Marker in graphs if we just come from a reboot
   if(bReboot)
   {
@@ -954,7 +982,7 @@ void loop()
     bReboot = false;    
   }
 
-
+/*
   //unsigned long message = set_message2(0xD,avgVoltage,dat1.pressure,level);
   Field voltageF(13, false, Integer);  // No sign,0 to 8192mV. Plenty of bits.
   Field stateF(2, false, Integer);     // No sign,0 to 4. 2 bit
@@ -968,26 +996,39 @@ void loop()
   Value tempSensor((int32_t)dat1.temp, tempSensorF);
 
   Value values2[3] = { volts, states, tempSensor };
+*/
+ 
+  Field voltageF(13, false, Integer);  // No sign,0 to 8192mV. Plenty of bits.
+  Field presF(8, true, Integer);    // −128 to +128
+  Field humF(7, false, Integer);    // 0 to 100
 
+  Value volts((int32_t)avgVoltage, voltageF);
+  Value pres((int32_t)dat1.pressure, presF);
+  Value hum((int32_t)dat1.humidity, humF);
+  
+  Value values2[3] = { volts, pres, hum};
+  
   // Pack it with id=4
-  uint32_t data2 = MessagePacker::pack(0x03, values2, 3);
+  uint32_t data2 = MessagePacker::pack(0x0E, values2, 3);
 
   level = 0;
   
 #ifdef SHOW_SERIAL   
-  Serial.print("Vcc is ");
+  Serial.print("\nVcc is ");
   Serial.print(avgVoltage>0?avgVoltage:voltage);
-  Serial.print(" Sent:");
-  Serial.print(data2);
   Serial.print(" mV state=");
   Serial.println(powerState);
+  Serial.print("ValueSent:");
+  Serial.print(data2);
   Serial.print("\n");
 #endif
     
-  // Send RF data
+  // Send RF data message with PKT_SIZE_BITS size long
     
-  mySwitch.send(data2, SIZE_BITS);
-    
+  mySwitch.send(data2, MSG_SIZE_BITS);
+  
+  digitalWrite(RF_POWER_PIN, LOW);
+
     //digitalWrite(11, LOW);
     delay(delayTime); 
     
@@ -1031,7 +1072,7 @@ SensorData getValues(Adafruit_BME280 &bme)
   //Serial.print("Humidity = ");
   Serial.print(humidity);
   Serial.print(" %");
-  Serial.println("\t\t"); 
+  Serial.print("\t\t"); 
 #endif
 
   dat.temp = (uint8_t)temp; //trunc(temp*100)/100;

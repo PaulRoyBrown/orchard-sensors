@@ -21,13 +21,6 @@ used. To use it, a couple of GPIO pins are needed to open or close the valve.
 #include <Hash.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebSrv.h>
-#define _DEBUG_
- 
-#include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <Hash.h>
-#include <ESPAsyncTCP.h>
-#include <ESPAsyncWebSrv.h>
 #include <RCSwitch.h>
 #include <ThingerESP8266.h>
 
@@ -37,12 +30,19 @@ RCSwitch mySwitch;
 
 String gMyIP = "";
 
-#define SERVER_CASA
+// I have two "servers", which is the max number of free devices in ThingerIO
+#define SERVER_HOME
+//#define SERVER_ORCHARD
 
+// Blue onboard LED pin and RF reception interrupt pin
 const uint8_t RF433_RX_MARK_PIN = 2;
 const uint8_t RF433_RX_RECEIVE_PIN = 14;
+
+// Red LED indicator and flowmeter interrupt pin
 const uint8_t FLOWMETER_MARK_PIN = 13;
 const uint8_t FLOWMETER_PIN = 12;
+
+// Solenoid valve pins
 const uint8_t VALVE_OPEN_PIN = 5;
 const uint8_t VALVE_CLOSE_PIN = 4;
 
@@ -50,18 +50,10 @@ int32_t rfOldValue = 0;
 
 const uint32_t SERIAL_SPEED     = 115200; ///< Set the baud rate for Serial I/O
 
-int i = 0;
-//uint8_t samples = 0;
-
-const uint32_t MAXVALUES = 10;
-
-float values[MAXVALUES] = {0}; 
-float avg = 0;
-
-
-
+// Test
 // Create AsyncWebServer object on port 80
-AsyncWebServer server(80); 
+//AsyncWebServer server(80); 
+
 /// List of wifi SSID's from which we check for an update
 struct Wifi
 { 
@@ -77,7 +69,8 @@ struct Wifi wifis[3] =
   { "WIFI_3","123456789","http://192.168.43.107:7020/file.bin"}
 };
 
-#ifdef SERVER_CASA
+// Tokens for ThingerIO obtained from online registration process
+#ifdef SERVER_HOME
 ThingerESP8266 thing("Boli", "DeviceIdCasa", "XYZ_Token");
 #define HEADER_PKG_1 0xC
 #define HEADER_PKG_2 0xD
@@ -99,6 +92,7 @@ bool connectWifi(struct Wifi wifi, int retries)
   WiFi.begin(wifi.ssid, wifi.pwd);
   thing.add_wifi(wifi.ssid, wifi.pwd);
 
+  // I have a red LED outside the box, to know we are in process of pairing to Wifi
   pinMode(FLOWMETER_MARK_PIN, OUTPUT);
   digitalWrite(FLOWMETER_MARK_PIN, led ? HIGH:LOW);
 
@@ -154,11 +148,6 @@ void tryConnect()
   while(!bConnected ); 
 }
 
-uint32_t samples[60];
-uint32_t mtotal = 0;
-uint32_t num_samples = 0;
-
-
 unsigned long t = millis();
 unsigned long tm = t; 
 
@@ -205,12 +194,12 @@ const int Tmax = 20;      // Minutes max with open valve
 const int Tcheck = 120;   // Minutes to wait ext check. 
 const int Tverif = 6;    // Seconds to have open valve to verify leaks
 
-// State variables
+// State variables to control irrigation state
 enum State {
-    WAITING_FOR_IRRIGATION,
-    IRRIGATION_ACTIVE,
-    PIPE_FAILURE,
-    VERIFYING_LEAK
+    WAITING_FOR_IRRIGATION, // Pipe closed.
+    IRRIGATION_ACTIVE,      // Water flowing in the pipe when automatic water irrigation timer opens
+    PIPE_FAILURE,           // Pipe has been providing water more that Tmax minutes
+    VERIFYING_LEAK          // Checking: after detecting one failure, we open from some time to time to check if now we can open valve again
 } current_state;
 
 unsigned long irrigation_start_time = 0;
@@ -658,7 +647,7 @@ public:
       totalBits += values[i].field.bits;
     }
 
-    if (totalBits > 30) // 28 for 4bit header 
+    if (totalBits > 28) //30) // 28 for 4bit header 
     {
       Serial.print("Error: total bits = "); // Always print it
       Serial.println(totalBits);
@@ -667,9 +656,9 @@ public:
     }
 
     // Move header bits at the beginning of the 32bit value
-    uint32_t result = ((uint32_t)(header & 0x03)) << 30;
+    //uint32_t result = ((uint32_t)(header & 0x03)) << 30;
 
-    // uint32_t result = ((uint32_t)(header & 0x0F)) << 28; For 4bit header
+    uint32_t result = ((uint32_t)(header & 0x0F)) << 28; //For 4bit header
 
     uint8_t offset = 0;
 
@@ -687,11 +676,9 @@ public:
   {
     uint8_t offset = 0;
 
-    uint8_t header = (packed >> 30) & 0x03;
-
-    // First, get header and return it
-    Serial.print("Header = ");
-    Serial.println(header);
+    // First, get header and return it to know how decoding must proceed
+    //uint8_t header = (packed >> 30) & 0x03;
+    uint8_t header = (packed >> 28) & 0x0F;
 
     // Now go for each bit field
     for (uint8_t i = 0; i < count; ++i) 
@@ -721,7 +708,9 @@ public:
 
     Serial.println("\n🔍 Message:");
     Serial.print("Header = ");
-    Serial.println((packed >> 30) & 0x03);
+
+    //Serial.println((packed >> 30) & 0x03);
+    Serial.println((packed >> 28) & 0x0F);
 
     for (uint8_t i = 0; i < count; ++i) {
       Serial.print("Campo ");
@@ -921,70 +910,77 @@ void loop()
     //}
     
     Serial.print("Received ");
-    Serial.println(rfValue);
+    Serial.print(rfValue);
  
-    /////////////////////////////////////////////////
-    /// First message: temp,pressure,humidity 
-    /////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////
+    /// First message: temp Thremistor,temp BME280, power state
+    ////////////////////////////////////////////////////////////////
      
     Field tempF(14, true, Float);     // −20.00 to +50.00 with 2 decimal
-    Field presF(8, true, Integer);    // −128 to +128
-    Field humF(7, false, Integer);    // 0 to 100
+    Field tempSensorF(7, true, Integer);  // -64 to 64
+    Field stateF(2, false, Integer);     // No sign,0 to 4. 2 bit
 
-    Field fields1[3] = { tempF, presF, humF };
+    Field fields1[3] = { tempF, tempSensorF, stateF };
 
     //MessagePacker::inspectMessage(rfValue, fields1, 3);
   
     Value values1[4];
     uint8_t header = MessagePacker::unpack(rfValue, fields1, values1, 3);
-    if(header == 0x02)
+
+    Serial.print(" Header = ");
+    Serial.println(header);
+
+    if(header == 0x0F) //0x02)
     {
+      MessagePacker::inspectMessage(rfValue, fields1, 3);
+
       tempPrecise = values1[0].floatValue;
-      presSonda = 1000 + values1[1].intValue;
-      humCable = values1[2].intValue;
-    
+      tempSonda = values1[1].intValue;
+      powerState = values1[2].intValue;
+
       tempCable = MessagePacker::roundFloat(tempPrecise);
       
       lastReception = now;
 
       flashLed();
 
-      Serial.print("T="); 
+      Serial.print("Tprecise="); 
       Serial.print(tempPrecise,2); 
-      Serial.print(" P=");
-      Serial.print(presSonda);
-      Serial.print(" H=");
-      Serial.println(humCable); 
+      Serial.print(" T="); 
+      Serial.print(tempSonda); 
+      Serial.print(" S="); 
+      Serial.println(powerState);
     }
-    else if(header == 0x03)
-    { 
+    else if(header == 0x0E) //0x03)
+    {       
+      /////////////////////////////////////////////////////////////
+      // Second message Batery voltage, pressure, humidity
+      /////////////////////////////////////////////////////////////
+
       Field voltageF(13, false, Integer);  // No sign,0 to 8192mV. Plenty of bits.
-      Field stateF(2, false, Integer);     // No sign,0 to 4. 2 bit
-      Field tempSensorF(7, true, Integer);      // All zero
+      Field presF(8, true, Integer);    // −128 to +128
+      Field humF(7, false, Integer);    // 0 to 100
 
-      Field fields2[3] = { voltageF, stateF,  tempSensorF};
-
+      Field fields2[3] = { voltageF, presF, humF};
+      
       // unpack
       Value values2[4];
       uint8_t header = MessagePacker::unpack(rfValue, fields2, values2, 3);
-      
-        voltage = values2[0].intValue;
-        powerState = values2[1].intValue;
-        tempSonda = values2[2].intValue;
 
-        // Legacy in message2
-        presSonda = 0;
+      voltage = values2[0].intValue;
+      presSonda = 1000 + values2[1].intValue;
+      humCable = values2[2].intValue;
 
-        lastReception = now;
+      lastReception = now;
 
-        flashLed();
+      flashLed();
 
-      Serial.print("V="); 
-      Serial.print(voltage); 
-      Serial.print(" S=");
-      Serial.print(powerState);
-      Serial.print(" T=");
-      Serial.println(tempSonda);
+      Serial.print(" V=");
+      Serial.print(voltage);
+      Serial.print(" Pres=");
+      Serial.print(presSonda);
+      Serial.print(" Hum=");
+      Serial.println(humCable);
     }
     else
     {
@@ -1072,7 +1068,6 @@ void loop()
   }
 
   lastRf = (now - lastReception)/1000;
-   
   if( lastRf > 35*60) //35 min with no RF contact
   {
     tempSonda = -1;
