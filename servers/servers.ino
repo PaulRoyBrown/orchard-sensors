@@ -63,18 +63,19 @@ struct Wifi
 };
 
 struct Wifi wifis[3] =
-{
-  { "WIFI_!","XXXXXXXXX","http://192.168.1.45:7020/file.bin"},
+ {
+  { "WIFI_1","XXXXXXXXX","http://192.168.1.45:7020/file.bin"},
   { "WIFI_2", "XXXXXXXXXX","http://192.168.1.45:7020/file.bin"},
   { "WIFI_3","123456789","http://192.168.43.107:7020/file.bin"}
-};
-
+ };
+ 
 // Tokens for ThingerIO obtained from online registration process
+// We have the devices "DeviceIdCasa" and "DeviceIdHuerto"
 #ifdef SERVER_HOME
 ThingerESP8266 thing("Boli", "DeviceIdCasa", "XYZ_Token");
 #define HEADER_PKG_1 0xC
 #define HEADER_PKG_2 0xD
-#elif
+#else
 ThingerESP8266 thing("Boli", "DeviceIdHuerto", "XYZ_Token");
 #define HEADER_PKG_1 0xA
 #define HEADER_PKG_2 0xB
@@ -974,6 +975,9 @@ void loop()
       lastReception = now;
 
       flashLed();
+      delay(150);
+      flashLed();
+      delay(150);
 
       Serial.print(" V=");
       Serial.print(voltage);
@@ -981,6 +985,74 @@ void loop()
       Serial.print(presSonda);
       Serial.print(" Hum=");
       Serial.println(humCable);
+    }
+    else if(header == 0x09)
+    {
+      lastRf2Value = rfValue;
+
+      Field presF(7, true, Integer);    // −128 to +128
+      Field tempSensorF(7, true, Integer);  
+      Field humF(7, false, Integer);    // 0 to 100
+      Field dummyF(7, false, Integer);    // 0 to 100
+
+      Field fields3[4] = { dummyF, humF, tempSensorF, presF};
+      Value values3[4];
+      
+      uint8_t header = MessagePacker::unpack(rfValue, fields3, values3, 4);
+
+      presCasa = 1000 + values3[3].intValue;
+      tempCasa = values3[2].intValue;
+      humCasa = values3[1].intValue;
+      int dummy = values3[0].intValue;
+
+      lastReception2 = now;
+
+      flashLed();
+      delay(150);
+      flashLed();
+      delay(150);
+      flashLed();
+      delay(150);
+      
+      Serial.print(" dummy=");
+      Serial.print(dummy);
+      Serial.print(" Pcasa=");
+      Serial.print(presCasa);
+      Serial.print(" Tcasa=");
+      Serial.print(tempCasa);
+      Serial.print(" HumCasa=");
+      Serial.println(humCasa);
+
+      tempCasaLast = tempCasa;
+      humCasaLast = humCasa;
+
+      /*
+      if((tempCasaLast != -1) && abs(tempCasa - tempCasaLast)>5)
+      {
+        tempCasa = tempCasaLast;
+        tempCasaLast = -1; 
+      } 
+      else
+      {
+        tempCasaLast = tempCasa;          
+      }
+
+      if((humCasaLast != -1) && abs(humCasa - humCasaLast)>10)
+      {
+        humCasa = humCasaLast;
+        humCasaLast = -1; 
+      } 
+      else
+      {
+        humCasaLast = humCasa;
+      }
+
+      if(humCasa == 1 || humCasa == 2)
+      {
+        // Special values if there are problems
+        humCasa = 0; 
+      }
+      */
     }
     else
     {
@@ -991,74 +1063,6 @@ void loop()
       return;
     }    
 
-    /*
-    else if(check_header(0x9,rfValue))
-    {  
-      lastRf2Value = rfValue;
-      unsigned long first = get_val(rfValue,0,false);
-      if(first != 127)
-      {
-        Serial.println("HEADER 0x9 noise ");
-        //Not the message we are waiting
-      }
-      else
-      {
-        Serial.println("HEADER 0x9 ");
-
-        humCasa = get_val(rfValue,1,false);
-        tempCasa = get_val(rfValue,2,true);
-        presCasa = 1000 + get_val(rfValue,3,true);
- 
-        if((tempCasaLast != -1) && abs(tempCasa - tempCasaLast)>5)
-        {
-          tempCasa = tempCasaLast;
-          tempCasaLast = -1; 
-        } 
-        else
-        {
-          tempCasaLast = tempCasa;          
-        }
-
-        if((humCasaLast != -1) && abs(humCasa - humCasaLast)>10)
-        {
-          humCasa = humCasaLast;
-          humCasaLast = -1; 
-        } 
-        else
-        {
-          humCasaLast = humCasa;
-        }
-
-        if(humCasa == 1 || humCasa == 2)
-        {
-          // Special values if there are problems
-          humCasa = 0; 
-        }
-
-        Serial.print("humCasa: ");
-        Serial.println(humCasa);
-
-        Serial.print("tempCasa: ");
-        Serial.println(tempCasa);
-      
-        Serial.print("presCasa: ");
-        Serial.println(presCasa);
-
-        //lastReception = now;
-        lastReception2 = now;
-
-        flashLed();
-      }
-    }
-    else
-    {
-      // Nothing received.
-      lastRf = (now - lastReception)/1000;
-      lastRf2 = (now - lastReception2)/1000;
-      
-      return;
-    }
-    */
     Serial.println('\n');  
 
     // Onboard led 4
